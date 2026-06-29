@@ -25,13 +25,11 @@ const CartScreen = ({ match, location, history }) => {
 
   useEffect(() => {
     if (buynow && productId) {
-      // If buy now, we only select this item
-      // ── MỚI: key = productId_color
       setSelectedItems([`${productId}_${color || ''}`])
+
     } else if (cartItems.length > 0 && selectedItems.length === 0) {
-       // Optional: select all by default if needed, here we just let them empty or select all
-       // ── MỚI: key = product_color để phân biệt cùng SP khác màu
-       setSelectedItems(cartItems.map(item => `${item.product}_${item.color || ''}`))
+      setSelectedItems(cartItems.map(item => `${item.product}_${item.color || ''}`))
+
     }
   }, [cartItems, buynow, productId, selectedItems.length])
 
@@ -41,8 +39,8 @@ const CartScreen = ({ match, location, history }) => {
     setSelectedItems(selectedItems.filter(item => item !== key))
   }
 
-  // ── MỚI: toggleSelect nhận key = product_color
   const toggleSelect = (key) => {
+
     if (selectedItems.includes(key)) {
       setSelectedItems(selectedItems.filter((i) => i !== key))
     } else {
@@ -51,18 +49,16 @@ const CartScreen = ({ match, location, history }) => {
   }
 
   const checkoutHandler = () => {
-    // Optional: You could save selected items to Redux or localStorage here to process ONLY selected items in Checkout
-    // For simplicity, we just pass the selected items ids in the URL or localstorage. Let's save to localstorage:
-    // ── MỚI: lưu objects {product, color} thay vì chỉ productId
     const selectedObjects = cartItems
+
       .filter(item => selectedItems.includes(`${item.product}_${item.color || ''}`))
       .map(item => ({ product: item.product, color: item.color || '' }))
     localStorage.setItem('selectedCartItems', JSON.stringify(selectedObjects))
     history.push('/login?redirect=checkout')
   }
 
-  // ── MỚI: filter theo key product_color
   const selectedCartObjects = cartItems.filter(
+
     item => selectedItems.includes(`${item.product}_${item.color || ''}`)
   )
   const totalQty = selectedCartObjects.reduce((acc, item) => acc + item.qty, 0)

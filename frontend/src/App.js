@@ -3,7 +3,7 @@ import { BrowserRouter as Router, Route, useLocation } from 'react-router-dom'
 import { Container } from 'react-bootstrap'
 import Header from './components/Header'
 import Footer from './components/Footer'
-// import PageLayout from './components/PageLayout'
+
 
 import HomeScreen from './screens/HomeScreen'
 import ProductScreen from './screens/ProductScreen'
@@ -29,7 +29,12 @@ import PlaceOrderScreen from './screens/PlaceOrderScreen'
 import DatHangScreen from './screens/DatHangScreen'
 import MyOrderScreen from './screens/MyOrderScreen'
 
+// VOUCHER ADMIN
+import VoucherListScreen from './screens/VoucherListScreen'
+import VoucherEditScreen from './screens/VoucherEditScreen'
+
 const ScrollToTop = () => {
+
   const { pathname } = useLocation();
 
   useEffect(() => {
@@ -91,9 +96,16 @@ const App = () => {
           <Route path='/admin/product/new' component={ProductAddScreen} />
           <Route path='/admin/product/:id/edit' component={ProductEditScreen} />
           <Route path='/admin/orderlist' component={OrderListScreen} />
+
+          {/* ===== VOUCHER ADMIN ===== */}
+          <Route path='/admin/voucherlist' component={VoucherListScreen} />
+          <Route path='/admin/voucher/new' component={VoucherEditScreen} />
+          <Route path='/admin/voucher/:id/edit' component={VoucherEditScreen} />
+
           <Route path='/admin/warehouse' component={WarehouseSettingsScreen} />
 
           {/* ===== SEARCH & HOME ===== */}
+
           <Route path='/search/:keyword' component={HomeScreen} exact />
           <Route path='/search/:keyword/page/:pageNumber' component={HomeScreen} exact />
           <Route path='/page/:pageNumber' component={HomeScreen} exact />

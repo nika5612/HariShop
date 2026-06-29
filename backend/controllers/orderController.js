@@ -2,9 +2,11 @@ import asyncHandler from 'express-async-handler'
 import mongoose from 'mongoose'
 import Order from '../models/orderModel.js'
 import Settings from '../models/settingsModel.js'
+import Voucher from '../models/voucherModel.js'
 
-// ─── GHN Helper ───────────────────────────────────────────────────────────────
+
 const USE_SANDBOX = (process.env.GHN_USE_SANDBOX || '').trim() === 'true'
+
 const GHN_BASE_URL = USE_SANDBOX
   ? 'https://dev-online-gateway.ghn.vn/shiip/public-api'
   : 'https://online-gateway.ghn.vn/shiip/public-api'
@@ -104,9 +106,7 @@ async function createGHNOrder(order, warehouseAddress) {
     return null
   }
 }
-// ─────────────────────────────────────────────────────────────────────────────
 
-// ── MỚI: Trừ tồn kho theo màu sau khi đặt hàng thành công ────────────────────
 async function deductStockByColor(orderItems) {
   const Product = (await import('../models/productModel.js')).default
 
@@ -116,7 +116,7 @@ async function deductStockByColor(orderItems) {
       if (!product) continue
 
       if (product.colors && product.colors.length > 0 && item.color) {
-        // Tìm đúng màu và trừ stock
+
         const colorIndex = product.colors.findIndex(
           (c) => c.name === item.color
         )
@@ -125,14 +125,14 @@ async function deductStockByColor(orderItems) {
             0,
             product.colors[colorIndex].countInStock - item.qty
           )
-          // pre('save') sẽ tự tính lại countInStock tổng
+
           await product.save()
           console.log(
             `✅ Trừ stock: ${product.name} [${item.color}] -${item.qty} → còn ${product.colors[colorIndex].countInStock}`
           )
         }
       } else {
-        // Sản phẩm không có colors → trừ countInStock tổng
+
         product.countInStock = Math.max(0, product.countInStock - item.qty)
         await product.save()
       }
@@ -141,11 +141,7 @@ async function deductStockByColor(orderItems) {
     }
   }
 }
-// ─────────────────────────────────────────────────────────────────────────────
 
-// @desc    Create new order
-// @route   POST /api/orders
-// @access  Private
 const addOrderItems = asyncHandler(async (req, res) => {
   console.log('=== BACKEND RECEIVED ===', JSON.stringify(req.body, null, 2))
   const {
@@ -197,14 +193,16 @@ const addOrderItems = asyncHandler(async (req, res) => {
     : computedTotalWeight
 
   const order = new Order({
-    // ── MỚI: lưu color trong từng orderItem ──────────────────────
+
     orderItems: orderItems.map((item) => ({
+
       name:    item.name,
       qty:     item.qty,
       image:   item.image,
       price:   item.price,
       weight:  item.weight || 0,
-      color:   item.color || '',   // ← lưu màu vào DB
+      color:   item.color || '',
+
       product: item.product,
     })),
     user: req.user._id,
@@ -229,14 +227,53 @@ const addOrderItems = asyncHandler(async (req, res) => {
 
   const createdOrder = await order.save()
 
-  // ── MỚI: Trừ tồn kho theo màu ngay sau khi lưu đơn ─────────────
+  // ─────────────────────────────────────────────────────────────
+  // MỚI: tăng usedCount khi đặt hàng thành công (non-blocking)
+  // ─────────────────────────────────────────────────────────────
+  try {
+    const voucherCode = String(createdOrder?.voucherCode || '').trim().toUpperCase()
+    if (voucherCode) {
+      const voucher = await Voucher.findOne({ code: voucherCode }).lean()
+      if (voucher) {
+        const isActive = voucher.isActive === true
+        const expiresAt = voucher.expiresAt ? new Date(voucher.expiresAt) : null
+        const now = new Date()
+        const notExpired = expiresAt ? expiresAt.getTime() > now.getTime() : true
+
+        const usageLimit = Number(voucher.usageLimit || 0)
+        const usedCount = Number(voucher.usedCount || 0)
+        const hasRemaining = usageLimit === 0 ? true : usedCount < usageLimit
+
+        const minOrder = Number(voucher.minOrder || 0)
+        const orderAmount = Number(createdOrder?.itemsPrice || 0)
+        const meetsMin = orderAmount >= minOrder
+
+        if (isActive && notExpired && hasRemaining && meetsMin) {
+          const condition = { code: voucherCode, isActive: true }
+          if (usageLimit > 0) {
+            condition.usedCount = { $lt: usageLimit }
+          }
+
+          await Voucher.findOneAndUpdate(
+            condition,
+            { $inc: { usedCount: 1 } },
+            { new: false }
+          )
+        }
+      }
+    }
+  } catch (e) {
+    console.error('❌ Voucher usedCount update error (non-fatal):', e.message)
+  }
+
   try {
     await deductStockByColor(createdOrder.orderItems)
   } catch (e) {
     console.error('❌ deductStockByColor error (non-fatal):', e.message)
   }
 
-  // ── Tạo vận đơn GHN ─────────────────────────────────────────────
+
+
   if (shippingProvider === 'ghn' || USE_SANDBOX) {
     try {
       const settings = await Settings.findOne({ key: 'global' }).lean().catch(() => null)

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import { Row, Col } from 'react-bootstrap'
+import axios from 'axios'
 import Message from '../components/Message'
 import Loader from '../components/Loader'
 import TermsModal from '../components/TermsModal'
@@ -23,8 +24,8 @@ import { listProductDetails } from '../actions/productActions'
 import { getShippingQuotes } from '../actions/shippingActions'
 
 
-// ── Sinh mã nội dung CK: "TT" + 6 chữ số ngẫu nhiên ──
 const generateTransferContent = () =>
+
   'TT' + String(Math.floor(100000 + Math.random() * 900000))
 
 const carrierLabel = (carrier) => {
@@ -35,14 +36,6 @@ const carrierLabel = (carrier) => {
   }
 }
 
-const VOUCHER_LIST = {
-  'HARI10': 0.10,
-  'HARI20': 0.20,
-  'SALE50K': 50000,
-  'NINGYAO5': 0.05,
-  'NINGYAO100K': 100000,
-  'NINGYAO500K': 500000,
-}
 
 const formatAddress = (addr) => {
   return [
@@ -90,14 +83,16 @@ const CheckoutScreen = ({ history, location }) => {
   const [showDeliveryOptions, setShowDeliveryOptions] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState('cod')
   const [voucherInput, setVoucherInput] = useState('')
-  const [voucherApplied, setVoucherApplied] = useState(null)
+  const [voucherApplied, setVoucherApplied] = useState(false) // flag đã áp thành công
+  const [voucherDiscount, setVoucherDiscount] = useState(0) // số tiền giảm
   const [voucherError, setVoucherError] = useState('')
+
   const [shopMessage, setShopMessage] = useState('')
   const [agreeTerms, setAgreeTerms] = useState(false)
   const [showTermsModal, setShowTermsModal] = useState(false)
 
-  // ── Mã nội dung chuyển khoản — sinh 1 lần, không đổi khi re-render ──
   const transferContentRef = useRef(generateTransferContent())
+
   const transferContent = transferContentRef.current
 
   useEffect(() => {
@@ -112,8 +107,8 @@ const CheckoutScreen = ({ history, location }) => {
       try {
         const saved = localStorage.getItem('selectedCartItems')
         if (saved) setSelectedCartItems(JSON.parse(saved))
-        // selectedCartItems giờ là [{product, color}] objects
       } catch (e) {
+
         console.error('Failed to load selectedCartItems:', e)
       }
     }
@@ -126,8 +121,9 @@ const CheckoutScreen = ({ history, location }) => {
   useEffect(() => {
     if (isBuyNow && buyNowProductId && !productLoading && buyNowProduct) {
       // ── MỚI: lấy countInStock theo màu được chọn ─────────────
-      const colorStockForBuyNow = (() => {
+        const colorStockForBuyNow = (() => {
         if (buyNowProduct.colors && buyNowProduct.colors.length > 0 && buyNowColor) {
+
           const found = buyNowProduct.colors.find((c) => c.name === buyNowColor)
           if (found) return found.countInStock
         }
@@ -136,6 +132,7 @@ const CheckoutScreen = ({ history, location }) => {
 
       const singleItem = {
         product: buyNowProductId,
+
         name: buyNowProduct.name,
         image: buyNowProduct.image,
         price: buyNowProduct.price,
@@ -222,26 +219,38 @@ const CheckoutScreen = ({ history, location }) => {
 
   const deliveryFee = Number(selectedQuote.fee || 0)
 
-  let discountAmount = 0
-  if (voucherApplied) {
-    discountAmount = voucherApplied < 1 ? itemsPrice * voucherApplied : voucherApplied
-  }
-  discountAmount = Math.min(discountAmount, Number(itemsPrice) || 0)
+  const discountAmount = Math.min(Number(voucherDiscount) || 0, Number(itemsPrice) || 0)
 
   const totalPrice = itemsPrice + deliveryFee - discountAmount
 
-  const applyVoucher = () => {
+  const applyVoucher = async () => {
     const code = voucherInput.trim().toUpperCase()
-    if (VOUCHER_LIST[code] !== undefined) {
-      setVoucherApplied(VOUCHER_LIST[code])
+    if (!code) {
+      setVoucherApplied(false)
+      setVoucherDiscount(0)
+      setVoucherError('Vui lòng nhập mã voucher')
+      return
+    }
+
+    try {
+      const res = await axios.post('/api/vouchers/apply', {
+        code,
+        orderAmount: itemsPrice,
+      })
+
+      setVoucherApplied(true)
+      setVoucherDiscount(Number(res.data.discountAmount) || 0)
       setVoucherError('')
       dispatch(saveVoucherCode(code))
-      dispatch(saveVoucherDiscount(VOUCHER_LIST[code]))
-    } else {
-      setVoucherApplied(null)
-      setVoucherError('Mã voucher không hợp lệ')
+      dispatch(saveVoucherDiscount(Number(res.data.discountAmount) || 0))
+    } catch (err) {
+      const msg = err?.response?.data?.message || 'Mã voucher không hợp lệ'
+      setVoucherApplied(false)
+      setVoucherDiscount(0)
+      setVoucherError(msg)
     }
   }
+
 
   const placeOrderHandler = () => {
     if (!agreeTerms) { alert('Vui lòng đồng ý với điều khoản!'); return }
@@ -254,7 +263,7 @@ const CheckoutScreen = ({ history, location }) => {
     dispatch(savePaymentMethod(paymentMethod))
     dispatch(saveShopMessage(shopMessage))
 
-    dispatch(createOrder({
+      dispatch(createOrder({
       orderItems: effectiveCartItems.map((item) => ({
         name:    item.name,
         qty:     item.qty,
@@ -290,6 +299,7 @@ const CheckoutScreen = ({ history, location }) => {
       transferContent,
     }))
   }
+
 
   const sectionStyle = {
     background: '#1a1a2e',
@@ -471,14 +481,13 @@ const CheckoutScreen = ({ history, location }) => {
             {voucherError && (
               <div style={{ color: '#ff6b6b', fontSize: '13px', marginTop: '8px' }}>{voucherError}</div>
             )}
-            {voucherApplied && (
+            {voucherApplied && voucherDiscount > 0 && (
               <div style={{ color: '#4cdb80', fontSize: '13px', marginTop: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <i className='fas fa-check-circle'></i>
-                Áp dụng thành công! Giảm {voucherApplied < 1
-                  ? `${(voucherApplied * 100).toFixed(0)}%`
-                  : `${voucherApplied.toLocaleString('vi-VN')}đ`}
+                Áp dụng thành công! Giảm {Number(voucherDiscount).toLocaleString('vi-VN')}đ
               </div>
             )}
+
           </div>
 
           {/* 4. LỜI NHẮN */}

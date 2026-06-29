@@ -24,9 +24,9 @@ import {
   ORDER_TRACK_RESET,
 } from '../constants/orderConstants'
 
-// ─── SePay / VietQR config ────────────────────────────────────────────────────
-const SEPAY_BANK_ID  = 'VCB'          // Vietcombank
-const SEPAY_ACCOUNT  = '0000000001'   // ← Thay bằng số TK thật của bạn
+const SEPAY_BANK_ID  = 'VCB'
+const SEPAY_ACCOUNT  = '0000000001'
+
 const SEPAY_TEMPLATE = 'compact2'
 
 const buildVietQRUrl = (amount, content) =>
@@ -267,7 +267,7 @@ const TrackingSection = ({ orderId }) => {
 
 // ─── QR Thanh toán SePay ──────────────────────────────────────────────────────
 const SepayQRSection = ({ order }) => {
-  // Poll mỗi 10 giây để tự reload khi SePay webhook cập nhật isPaid
+
   const dispatch = useDispatch()
   const [countdown, setCountdown] = useState(10)
 

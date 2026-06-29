@@ -19,8 +19,10 @@ import userRoutes from './routes/userRoutes.js'
 import orderRoutes from './routes/orderRoutes.js'
 import orderAdminRoutes from './routes/orderAdminRoutes.js'
 import sepayWebhookRoutes from './routes/sepayWebhookRoutes.js'
+import voucherRoutes from './routes/voucherRoutes.js'
 
 import uploadRoutes from './routes/uploadRoutes.js'
+
 
 import shippingRoutes from './routes/shippingRoutes.js'
 import settingsRoutes from './routes/settingsRoutes.js'
@@ -164,6 +166,8 @@ app.use('/api/products', productRoutes)
 app.use('/api/users', userRoutes)
 app.use('/api/orders', orderRoutes)
 app.use('/api/orders/admin', orderAdminRoutes)
+app.use('/api/vouchers', voucherRoutes)
+
 
 app.use('/api/upload', uploadRoutes)
 app.use('/api/shipping', shippingRoutes)

@@ -11,15 +11,16 @@ const ShippingScreen = ({ history }) => {
   const cart = useSelector((state) => state.cart)
   const { shippingAddress, cartItems } = cart
 
-  // Custom 4 fields
+
   const [street, setStreet] = useState('')
   const [houseNumber, setHouseNumber] = useState('')
 
-  // Recover existing detail string if possible
+
   useEffect(() => {
     if (shippingAddress.detail) {
       const parts = shippingAddress.detail.split(', ');
       if (parts.length > 1) {
+
         setHouseNumber(parts[0]);
         setStreet(parts.slice(1).join(', '));
       } else {
@@ -28,16 +29,18 @@ const ShippingScreen = ({ history }) => {
     }
   }, [shippingAddress.detail]);
 
-  // Location data
+
   const [provinces, setProvinces] = useState([])
-  const [combinedWards, setCombinedWards] = useState([]) // holds { ward, district }
+  const [combinedWards, setCombinedWards] = useState([])
+
   const [loadingWards, setLoadingWards] = useState(false)
 
-  // Selected values
-  const [provinceObj, setProvinceObj] = useState(null)
-  const [selectedCombinedWard, setSelectedCombinedWard] = useState(null) // { wardObj, districtObj }
 
-  // Quotes
+  const [provinceObj, setProvinceObj] = useState(null)
+  const [selectedCombinedWard, setSelectedCombinedWard] = useState(null)
+
+
+
   const [quotes, setQuotes] = useState([])
   const [loadingQuotes, setLoadingQuotes] = useState(false)
   const [selectedQuote, setSelectedQuote] = useState(null)
@@ -77,15 +80,15 @@ const ShippingScreen = ({ history }) => {
     setLoadingWards(true);
     
     try {
-      // 1. Fetch dists
+
       const { data: dData } = await axios.get(`/api/shipping/districts?provinceId=${encodeURIComponent(JSON.stringify(p))}`);
       if (dData.success && dData.data.length > 0) {
         const dists = dData.data;
 
-        // 2. Fetch all wards for these dists in parallel
+
         const allWards = [];
-        // To not overwhelm the server totally, slice it or just Promise.all
-        // Usually 10-30 districts. Node handles 30 rapid requests fine
+
+
         await Promise.all(dists.map(async (d) => {
            try {
              const { data: wData } = await axios.get(`/api/shipping/wards?districtId=${encodeURIComponent(JSON.stringify(d))}`)
@@ -118,7 +121,7 @@ const ShippingScreen = ({ history }) => {
     const cw = JSON.parse(val);
     setSelectedCombinedWard(cw);
 
-    // Call fetch quotes now
+
     fetchQuotes(cw.wardObj, cw.districtObj, provinceObj);
   }
 
@@ -180,11 +183,12 @@ const ShippingScreen = ({ history }) => {
     
     setError('');
     
-    // Combine full detail string for DB
+
     const finalDetail = `${houseNumber.trim()}, ${street.trim()}`;
 
     const fullShippingAddress = {
-      fullName: shippingAddress.fullName || 'Khách hàng', // fallback if needed or let user edit it
+      fullName: shippingAddress.fullName || 'Khách hàng',
+
       phone: shippingAddress.phone || '000000',
       detail: finalDetail,
       province: provinceObj.provinceName,

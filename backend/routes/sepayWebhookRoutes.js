@@ -11,12 +11,7 @@ function getSepaySecret() {
 }
 
 function verifySepaySignature({ rawBody, headers, query, secret }) {
-  // NOTE: sePay signature header name depends on their docs.
-  // Since user provided only endpoint + secret key, we support common patterns:
-  // - x-sepay-signature
-  // - x-signature
-  // - x-hmac-signature
-  // Signature verification algorithm is assumed HMAC-SHA256.
+
 
   const signature =
     headers['x-sepay-signature'] ||
@@ -37,8 +32,7 @@ function verifySepaySignature({ rawBody, headers, query, secret }) {
   return expected === String(signature)
 }
 
-// Webhook endpoint for sePay
-// POST /api/payments/sepay-webhook
+
 router.post(
   '/sepay-webhook',
   asyncHandler(async (req, res) => {
@@ -47,9 +41,7 @@ router.post(
       return res.status(500).json({ ok: false, message: 'SEPAY_SECRET missing' })
     }
 
-    // express.json() already consumed body; we don't have raw body here by default.
-    // We'll still attempt to verify using JSON string from req.body.
-    // If your sePay requires exact raw bytes, adjust server to use express.raw.
+
     const rawBody = typeof req.body === 'string' ? req.body : JSON.stringify(req.body || {})
 
     const ok = verifySepaySignature({
@@ -89,7 +81,7 @@ router.post(
     const paid = String(status || '').toLowerCase() === 'success' || String(status || '').toLowerCase() === 'paid'
 
     if (!paid) {
-      // keep order unpaid; still store result for auditing
+
       updated.paymentResult = {
         id: transactionId || '',
         status: String(status || ''),
@@ -100,7 +92,7 @@ router.post(
       return res.json({ ok: true, message: 'Payment not successful - order left unpaid' })
     }
 
-    // Idempotent update
+
     if (!updated.isPaid) {
       updated.isPaid = true
       updated.paidAt = Date.now()

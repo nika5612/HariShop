@@ -130,6 +130,11 @@ const Header = () => {
                       <i className='fas fa-shopping-bag me-2'></i>Đơn Hàng
                     </NavDropdown.Item>
                   </LinkContainer>
+                  <LinkContainer to='/admin/voucherlist'>
+                    <NavDropdown.Item className="dropdown-item-pro">
+                      <i className='fas fa-ticket-alt me-2'></i>Voucher
+                    </NavDropdown.Item>
+                  </LinkContainer>
                   <LinkContainer to='/admin/warehouse'>
                     <NavDropdown.Item className="dropdown-item-pro">
                       <i className='fas fa-warehouse me-2'></i>Kho gửi hàng

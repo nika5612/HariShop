@@ -2,7 +2,7 @@ import { createStore, combineReducers, applyMiddleware } from 'redux'
 import { thunk } from 'redux-thunk'
 import { composeWithDevTools } from 'redux-devtools-extension'
 
-// PRODUCT
+
 import {
   productListReducer,
   productDetailsReducer,
@@ -48,10 +48,20 @@ import {
   orderAdminDeleteReducer,
 } from './reducers/orderReducers'
 
+// VOUCHER (ADMIN)
+import {
+  voucherListReducer,
+  voucherCreateReducer,
+  voucherUpdateReducer,
+  voucherDeleteReducer,
+} from './reducers/voucherReducers'
+
+
 
 // ADDRESS
 import { addressReducer } from './reducers/addressReducers'
 import { shippingQuotesReducer, shippingTrackReducer } from './reducers/shippingReducers'
+
 
 // ================= REDUCER =================
 const reducer = combineReducers({
@@ -89,9 +99,15 @@ const reducer = combineReducers({
   orderAdminBrand: orderAdminBrandReducer,
   orderAdminDelete: orderAdminDeleteReducer,
 
+  // VOUCHER (ADMIN)
+  voucherList: voucherListReducer,
+  voucherCreate: voucherCreateReducer,
+  voucherUpdate: voucherUpdateReducer,
+  voucherDelete: voucherDeleteReducer,
 
   // ADDRESS BOOK
   address: addressReducer,
+
 
   productDeleteReview: productDeleteReviewReducer,
   userForgotPassword: userForgotPasswordReducer,

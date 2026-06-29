@@ -1,12 +1,13 @@
 import React from 'react'
 
 const PIE_COLORS = [
-  '#0dcaf0', // cyan   — apple
-  '#6610f2', // purple — samsung
-  '#dc3545', // red    — xiaomi
-  '#198754', // green  — oppo
-  '#fd7e14', // orange — realme
-  '#6c757d', // gray   — khác
+  '#0dcaf0',
+  '#6610f2',
+  '#dc3545',
+  '#198754',
+  '#fd7e14',
+  '#6c757d',
+
 ]
 
 function polarToCartesian(cx, cy, r, angleDeg) {

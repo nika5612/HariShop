@@ -47,8 +47,8 @@ const ProductScreen = ({ history, match }) => {
       dispatch(listProductDetails(match.params.id))
       dispatch({ type: PRODUCT_CREATE_REVIEW_RESET })
     }
-    // ── MỚI: set màu mặc định = màu đầu tiên khi product load ──
     if (product?.colors && product.colors.length > 0 && !color) {
+
       setColor(product.colors[0].name)
     }
   }, [dispatch, match, product?._id, successProductReview, product?.colors, color]) // eslint-disable-line react-hooks/exhaustive-deps
