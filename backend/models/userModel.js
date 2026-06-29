@@ -1,6 +1,48 @@
 import mongoose from 'mongoose'
 import bcrypt from 'bcryptjs'
 
+const addressSchema = mongoose.Schema(
+  {
+    fullName: {
+      type: String,
+      required: true,
+    },
+    phone: {
+      type: String,
+      required: true,
+    },
+    province: {
+      type: String,
+      required: true,
+    },
+    district: {
+      type: String,
+      default: '',
+    },
+    ward: {
+      type: String,
+      required: true,
+    },
+    // Provider-specific mapping (optional but enables realtime shipping)
+    ghnDistrictId: { type: Number, default: 0 },
+    ghnWardCode: { type: String, default: '' },
+    vtpProvinceId: { type: Number, default: 0 },
+    vtpDistrictId: { type: Number, default: 0 },
+    vtpWardId: { type: Number, default: 0 },
+    detail: {
+      type: String,
+      required: true,
+    },
+    isDefault: {
+      type: Boolean,
+      default: false,
+    },
+  },
+  {
+    timestamps: true,
+  }
+)
+
 const userSchema = mongoose.Schema(
   {
     name: {
@@ -21,21 +63,23 @@ const userSchema = mongoose.Schema(
       required: true,
       default: false,
     },
+
+
+    addresses: [addressSchema],
+    resetPasswordToken: { type: String },
+    resetPasswordExpire: { type: Date },
   },
   {
     timestamps: true,
   }
 )
 
+
 userSchema.methods.matchPassword = async function (enteredPassword) {
   return await bcrypt.compare(enteredPassword, this.password)
 }
-
-userSchema.pre('save', async function (next) {
-  if (!this.isModified('password')) {
-    next()
-  }
-
+userSchema.pre('save', async function () {
+  if (!this.isModified('password')) return
   const salt = await bcrypt.genSalt(10)
   this.password = await bcrypt.hash(this.password, salt)
 })

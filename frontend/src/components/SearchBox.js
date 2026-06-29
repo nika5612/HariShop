@@ -7,7 +7,7 @@ const SearchBox = ({ history }) => {
   const submitHandler = (e) => {
     e.preventDefault()
     if (keyword.trim()) {
-      history.push(`/search/${keyword}`)
+      history.push(`/?keyword=${keyword}`)
     } else {
       history.push('/')
     }
@@ -19,11 +19,30 @@ const SearchBox = ({ history }) => {
         type='text'
         name='q'
         onChange={(e) => setKeyword(e.target.value)}
-        placeholder='Search Products...'
-        className='mr-sm-2 ml-sm-5'
-      ></Form.Control>
-      <Button type='submit' variant='outline-success' className='p-2'>
-        Search
+        placeholder='Tìm Kiếm Sản Phẩm...'
+        style={{
+          background: '#0f0f23',
+          border: '1px solid rgba(51,255,204,0.4)',
+          color: '#ffffff',
+          borderRadius: '12px',
+          padding: '12px 16px',
+          marginRight: '12px'
+        }}
+        className='flex-grow-1'
+      />
+      <Button 
+        type='submit' 
+        style={{
+          background: '#33FFCC',
+          border: 'none',
+          color: '#0f0f23',
+          fontWeight: '700',
+          borderRadius: '12px',
+          padding: '12px 20px',
+          boxShadow: '0 4px 15px rgba(51,255,204,0.3)'
+        }}
+      >
+        <i className='fas fa-search me-1'></i>Tìm Kiếm
       </Button>
     </Form>
   )

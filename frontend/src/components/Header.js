@@ -1,63 +1,139 @@
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import { Route } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import { LinkContainer } from 'react-router-bootstrap'
-import { Navbar, Nav, Container, NavDropdown } from 'react-bootstrap'
+import { Navbar, Nav, Container, NavDropdown, Button, Badge } from 'react-bootstrap'
 import SearchBox from './SearchBox'
 import { logout } from '../actions/userActions'
 
 const Header = () => {
+  const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark')
+  const [showThemeAnim, setShowThemeAnim] = useState(false)
+  
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme)
+    localStorage.setItem('theme', theme)
+  }, [theme])
+
+  const toggleTheme = () => {
+    setShowThemeAnim(true)
+    setTheme(theme === 'dark' ? 'light' : 'dark')
+    setTimeout(() => setShowThemeAnim(false), 300)
+  }
+
   const dispatch = useDispatch()
 
   const userLogin = useSelector((state) => state.userLogin)
   const { userInfo } = userLogin
+  const cart = useSelector((state) => state.cart)
+  const { cartItems } = cart
+
+  const cartCount = cartItems.reduce((acc, item) => acc + item.qty, 0)
 
   const logoutHandler = () => {
     dispatch(logout())
   }
 
   return (
-    <header>
-      <Navbar bg='dark' variant='dark' expand='lg' collapseOnSelect>
+    <header className="header-main">
+      <Navbar expand='lg' collapseOnSelect className="navbar-professional">
         <Container>
+          {/* LOGO */}
           <LinkContainer to='/'>
-            <Navbar.Brand>ProShop</Navbar.Brand>
+            <Navbar.Brand className="logo-gradient pro-logo">
+              Hari Shop
+            </Navbar.Brand>
           </LinkContainer>
-          <Navbar.Toggle aria-controls='basic-navbar-nav' />
-          <Navbar.Collapse id='basic-navbar-nav'>
-            <Route render={({ history }) => <SearchBox history={history} />} />
-            <Nav className='ml-auto'>
+
+          <Navbar.Toggle 
+            aria-controls='basic-navbar-nav' 
+            aria-label="Toggle navigation"
+            className="navbar-toggle-custom"
+          />
+          <Navbar.Collapse id='basic-navbar-nav' className="justify-content-center">
+            
+            {/* SEARCH BOX - Responsive */}
+            <div className="search-wrapper mx-auto d-none d-lg-block">
+              <Route render={({ history }) => <SearchBox history={history} />} />
+            </div>
+
+            {/* Right Nav */}
+            <Nav className='ms-auto align-items-center nav-links-container'>
+              
+              {/* THEME TOGGLE */}
+              <Button 
+                variant="link" 
+                onClick={toggleTheme} 
+                className={`theme-toggle ${showThemeAnim ? 'rotate-anim' : ''}`}
+                aria-label="Toggle light/dark theme"
+                title="Chuyển đổi giao diện Sáng / Tối"
+              >
+                <i className={`fas ${theme === 'dark' ? 'fa-sun' : 'fa-moon'} theme-icon`}></i>
+              </Button>
+
+              {/* CART WITH BADGE */}
               <LinkContainer to='/cart'>
-                <Nav.Link>
-                  <i className='fas fa-shopping-cart'></i> Cart
+                <Nav.Link className="nav-link-pro px-3 position-relative">
+                  <i className='fas fa-shopping-cart me-1'></i> 
+                  Giỏ Hàng
+                  {cartCount > 0 && (
+                    <Badge pill bg="primary" className="cart-badge">
+                      {cartCount}
+                    </Badge>
+                  )}
                 </Nav.Link>
               </LinkContainer>
+
+              {/* USER */}
               {userInfo ? (
-                <NavDropdown title={userInfo.name} id='username'>
+                <NavDropdown 
+                  title={<span className="user-name">{userInfo.name}</span>} 
+                  id='username'
+                  className="user-dropdown"
+                >
                   <LinkContainer to='/profile'>
-                    <NavDropdown.Item>Profile</NavDropdown.Item>
+                    <NavDropdown.Item className="dropdown-item-pro">
+                      <i className='fas fa-user me-2'></i>Hồ sơ
+                    </NavDropdown.Item>
                   </LinkContainer>
-                  <NavDropdown.Item onClick={logoutHandler}>
-                    Logout
+                  <NavDropdown.Item onClick={logoutHandler} className="dropdown-item-pro">
+                    <i className='fas fa-sign-out-alt me-2'></i>Đăng xuất
                   </NavDropdown.Item>
                 </NavDropdown>
               ) : (
                 <LinkContainer to='/login'>
-                  <Nav.Link>
-                    <i className='fas fa-user'></i> Sign In
+                  <Nav.Link className="nav-link-pro">
+                    <i className='fas fa-user me-1'></i> Đăng Nhập
                   </Nav.Link>
                 </LinkContainer>
               )}
+              
+              {/* ADMIN */}
               {userInfo && userInfo.isAdmin && (
-                <NavDropdown title='Admin' id='adminmenu'>
+                <NavDropdown 
+                  title={<span className="admin-panel">Admin</span>} 
+                  id='adminmenu'
+                  className="admin-dropdown"
+                >
                   <LinkContainer to='/admin/userlist'>
-                    <NavDropdown.Item>Users</NavDropdown.Item>
+                    <NavDropdown.Item className="dropdown-item-pro">
+                      <i className='fas fa-users me-2'></i>Người Dùng
+                    </NavDropdown.Item>
                   </LinkContainer>
                   <LinkContainer to='/admin/productlist'>
-                    <NavDropdown.Item>Products</NavDropdown.Item>
+                    <NavDropdown.Item className="dropdown-item-pro">
+                      <i className='fas fa-box me-2'></i>Sản Phẩm
+                    </NavDropdown.Item>
                   </LinkContainer>
                   <LinkContainer to='/admin/orderlist'>
-                    <NavDropdown.Item>Orders</NavDropdown.Item>
+                    <NavDropdown.Item className="dropdown-item-pro">
+                      <i className='fas fa-shopping-bag me-2'></i>Đơn Hàng
+                    </NavDropdown.Item>
+                  </LinkContainer>
+                  <LinkContainer to='/admin/warehouse'>
+                    <NavDropdown.Item className="dropdown-item-pro">
+                      <i className='fas fa-warehouse me-2'></i>Kho gửi hàng
+                    </NavDropdown.Item>
                   </LinkContainer>
                 </NavDropdown>
               )}
@@ -70,3 +146,4 @@ const Header = () => {
 }
 
 export default Header
+

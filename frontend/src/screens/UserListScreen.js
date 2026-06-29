@@ -1,10 +1,13 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
+
 import { LinkContainer } from 'react-router-bootstrap'
 import { Table, Button } from 'react-bootstrap'
 import { useDispatch, useSelector } from 'react-redux'
 import Message from '../components/Message'
 import Loader from '../components/Loader'
 import { listUsers, deleteUser } from '../actions/userActions'
+import ConfirmDeleteModal from '../components/ConfirmDeleteModal'
+
 
 const UserListScreen = ({ history }) => {
   const dispatch = useDispatch()
@@ -26,15 +29,34 @@ const UserListScreen = ({ history }) => {
     }
   }, [dispatch, history, successDelete, userInfo])
 
+  const [showConfirm, setShowConfirm] = useState(false)
+  const [deleteId, setDeleteId] = useState(null)
+
   const deleteHandler = (id) => {
-    if (window.confirm('Are you sure')) {
-      dispatch(deleteUser(id))
-    }
+    setDeleteId(id)
+    setShowConfirm(true)
   }
+
 
   return (
     <>
+      <ConfirmDeleteModal
+        show={showConfirm}
+        title={'Xoá tài khoản này?'}
+        confirmText={'Xoá'}
+        cancelText={'Huỷ'}
+        onCancel={() => {
+          setShowConfirm(false)
+          setDeleteId(null)
+        }}
+        onConfirm={() => {
+          dispatch(deleteUser(deleteId))
+          setShowConfirm(false)
+          setDeleteId(null)
+        }}
+      />
       <h1>Users</h1>
+
       {loading ? (
         <Loader />
       ) : error ? (
@@ -44,7 +66,7 @@ const UserListScreen = ({ history }) => {
           <thead>
             <tr>
               <th>ID</th>
-              <th>NAME</th>
+              <th>Tên</th>
               <th>EMAIL</th>
               <th>ADMIN</th>
               <th></th>

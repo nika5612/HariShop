@@ -10,8 +10,19 @@
 // To learn more about the benefits of this model and instructions on how to
 // opt-in, read https://bit.ly/CRA-PWA
 
+// Polyfill process.env for browser
+// 🔧 FIXED: Global process polyfill (moved to top of file)
+window.process = window.process || { 
+  env: { 
+    NODE_ENV: 'development',
+    PUBLIC_URL: process?.env?.PUBLIC_URL || ''
+  } 
+};
+
+
 const isLocalhost = Boolean(
   window.location.hostname === 'localhost' ||
+
     // [::1] is the IPv6 localhost address.
     window.location.hostname === '[::1]' ||
     // 127.0.0.0/8 are considered localhost for IPv4.
@@ -21,9 +32,9 @@ const isLocalhost = Boolean(
 );
 
 export function register(config) {
-  if (process.env.NODE_ENV === 'production' && 'serviceWorker' in navigator) {
+  if ((window.process?.env?.NODE_ENV || 'development') === 'production' && 'serviceWorker' in navigator) {
     // The URL constructor is available in all browsers that support SW.
-    const publicUrl = new URL(process.env.PUBLIC_URL, window.location.href);
+    const publicUrl = new URL((window.process?.env?.PUBLIC_URL || '/'), window.location.href);
     if (publicUrl.origin !== window.location.origin) {
       // Our service worker won't work if PUBLIC_URL is on a different origin
       // from what our page is served on. This might happen if a CDN is used to
@@ -32,7 +43,7 @@ export function register(config) {
     }
 
     window.addEventListener('load', () => {
-      const swUrl = `${process.env.PUBLIC_URL}/service-worker.js`;
+      const swUrl = `${window.process?.env?.PUBLIC_URL || ''}/service-worker.js`;
 
       if (isLocalhost) {
         // This is running on localhost. Let's check if a service worker still exists or not.

@@ -1,0 +1,52 @@
+/* Shared contrast/typography overrides.
+   Goal: increase readability (contrast + scale + layout) without changing layout structure.
+*/
+
+:root {
+  --hs-text: #eef0f7;
+  --hs-muted: rgba(238, 240, 247, 0.78);
+  --hs-line: rgba(255, 255, 255, 0.12);
+}
+
+/* Make headings/paragraphs inherit theme text color when inline styles don't set it */
+body {
+  color: var(--text-primary) !important;
+}
+
+/* Stronger default text contrast */
+.text-secondary,
+.text-muted {
+  color: var(--hs-muted) !important;
+}
+
+/* Improve bootstrap table text contrast */
+.table {
+  color: var(--hs-text) !important;
+}
+
+.table th,
+.table td {
+  color: var(--hs-text) !important;
+}
+
+.table-striped > tbody > tr:nth-of-type(odd) {
+  color: var(--hs-text) !important;
+}
+
+/* Buttons: ensure readable text on light/dark variants */
+.btn-light {
+  color: #071018 !important;
+}
+
+/* Inputs/select/textarea readability */
+input,
+select,
+textarea {
+  color: var(--hs-text) !important;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: rgba(238, 240, 247, 0.55) !important;
+}
+

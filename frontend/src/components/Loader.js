@@ -1,21 +1,8 @@
-import React from 'react'
-import { Spinner } from 'react-bootstrap'
+import React from 'react' // eslint-disable-next-line no-unused-vars
 
 const Loader = () => {
-  return (
-    <Spinner
-      animation='border'
-      role='status'
-      style={{
-        width: '100px',
-        height: '100px',
-        margin: 'auto',
-        display: 'block',
-      }}
-    >
-      <span className='sr-only'>Loading...</span>
-    </Spinner>
-  )
+  return <div className='loader-modern' aria-label='Loading' />
 }
 
 export default Loader
+

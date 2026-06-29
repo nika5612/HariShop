@@ -7,6 +7,11 @@ import Loader from '../components/Loader'
 import FormContainer from '../components/FormContainer'
 import { login } from '../actions/userActions'
 
+
+const validateEmail = (email) => {
+  const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  return regex.test(email)
+}
 const LoginScreen = ({ location, history }) => {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -31,40 +36,89 @@ const LoginScreen = ({ location, history }) => {
 
   return (
     <FormContainer>
-      <h1>Sign In</h1>
+      <h1 style={{ color: '#ffffff', fontWeight: '700', marginBottom: '1.5rem' }}>
+        <i className='fas fa-sign-in-alt me-3' style={{ color: '#33FFCC' }}></i>Đăng Nhập
+      </h1>
       {error && <Message variant='danger'>{error}</Message>}
       {loading && <Loader />}
       <Form onSubmit={submitHandler}>
-        <Form.Group controlId='email'>
-          <Form.Label>Email Address</Form.Label>
+        <Form.Group controlId='email' style={{ marginBottom: '1.5rem' }}>
+          <Form.Label style={{ color: '#ffffff', fontWeight: '500' }}>Email</Form.Label>
           <Form.Control
             type='email'
-            placeholder='Enter email'
+            placeholder='Nhập email của bạn'
             value={email}
+            required
+            isInvalid={email && !validateEmail(email)}
             onChange={(e) => setEmail(e.target.value)}
-          ></Form.Control>
+            style={{
+              background: '#0f0f23',
+              border: '1px solid rgba(51,255,204,0.4)',
+              color: '#ffffff',
+              borderRadius: '12px',
+              padding: '14px 16px'
+            }}
+          />
+          <Form.Control.Feedback type='invalid' style={{ color: '#ff6b6b' }}>
+            Email không đúng định dạng
+          </Form.Control.Feedback>
         </Form.Group>
 
-        <Form.Group controlId='password'>
-          <Form.Label>Password</Form.Label>
+        <Form.Group controlId='password' style={{ marginBottom: '1.5rem' }}>
+          <Form.Label style={{ color: '#ffffff', fontWeight: '500' }}>Mật khẩu</Form.Label>
           <Form.Control
             type='password'
-            placeholder='Enter password'
+            placeholder='Nhập mật khẩu'
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-          ></Form.Control>
+            style={{
+              background: '#0f0f23',
+              border: '1px solid rgba(51,255,204,0.4)',
+              color: '#ffffff',
+              borderRadius: '12px',
+              padding: '14px 16px'
+            }}
+          />
         </Form.Group>
 
-        <Button type='submit' variant='primary'>
-          Sign In
+        <Button 
+          type='submit' 
+          style={{
+            width: '100%',
+            background: '#33FFCC',
+            border: 'none',
+            color: '#0f0f23',
+            fontWeight: '700',
+            padding: '16px',
+            borderRadius: '12px',
+            fontSize: '16px',
+            boxShadow: '0 6px 20px rgba(51,255,204,0.4)'
+          }}
+        >
+          <i className='fas fa-sign-in-alt me-2'></i>Đăng Nhập
         </Button>
       </Form>
 
-      <Row className='py-3'>
-        <Col>
-          New Customer?{' '}
-          <Link to={redirect ? `/register?redirect=${redirect}` : '/register'}>
-            Register
+      <Row style={{ marginTop: '2rem' }}>
+        <Col style={{ textAlign: 'center', color: '#b8bcc8' }}>
+          Chưa Có Tài Khoản?{' '}
+          <Link to={redirect ? `/register?redirect=${redirect}` : '/register'} style={{ 
+            color: '#33FFCC', 
+            fontWeight: '600',
+            textDecoration: 'none'
+          }}>
+            Đăng Ký Ngay
+          </Link>
+        </Col>
+      </Row>
+      <Row style={{ marginTop: '1rem' }}>
+        <Col style={{ textAlign: 'center' }}>
+          <Link to='/forgotpassword' style={{ 
+            color: '#33FFCC', 
+            fontWeight: '500',
+            textDecoration: 'none'
+          }}>
+            <i className='fas fa-key me-1'></i>Quên Mật Khẩu?
           </Link>
         </Col>
       </Row>

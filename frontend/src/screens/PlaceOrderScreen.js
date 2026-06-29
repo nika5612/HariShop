@@ -13,12 +13,25 @@ const PlaceOrderScreen = ({ history }) => {
 
   const cart = useSelector((state) => state.cart)
 
-  if (!cart.shippingAddress.address) {
-    history.push('/shipping')
-  } else if (!cart.paymentMethod) {
-    history.push('/payment')
+  // VN validation for missing shipping fields - Simplified (no district)
+  const missingShipping = !cart.shippingAddress.fullName || !cart.shippingAddress.phone || 
+      !cart.shippingAddress.province || 
+      !cart.shippingAddress.ward || !cart.shippingAddress.detail;
+      
+  const missingPayment = !cart.paymentMethod;
+  
+  if (missingShipping) {
+    history.push('/shipping?error=province');
+  } else if (missingPayment) {
+    history.push('/payment');
   }
-  //   Calculate prices
+
+  // Format tiền VNĐ
+  const formatVND = (num) => {
+    return Number(num).toLocaleString('vi-VN')
+  }
+
+  // Calculate prices
   const addDecimals = (num) => {
     return (Math.round(num * 100) / 100).toFixed(2)
   }
@@ -26,8 +39,10 @@ const PlaceOrderScreen = ({ history }) => {
   cart.itemsPrice = addDecimals(
     cart.cartItems.reduce((acc, item) => acc + item.price * item.qty, 0)
   )
-  cart.shippingPrice = addDecimals(cart.itemsPrice > 100 ? 0 : 100)
-  cart.taxPrice = addDecimals(Number((0.15 * cart.itemsPrice).toFixed(2)))
+
+  cart.shippingPrice = addDecimals(cart.itemsPrice > 1000000 ? 0 : 30000)
+  cart.taxPrice = addDecimals(Number((0.1 * cart.itemsPrice).toFixed(2)))
+
   cart.totalPrice = (
     Number(cart.itemsPrice) +
     Number(cart.shippingPrice) +
@@ -43,8 +58,7 @@ const PlaceOrderScreen = ({ history }) => {
       dispatch({ type: USER_DETAILS_RESET })
       dispatch({ type: ORDER_CREATE_RESET })
     }
-    // eslint-disable-next-line
-  }, [history, success])
+  }, [history, success, dispatch, order])
 
   const placeOrderHandler = () => {
     dispatch(
@@ -63,99 +77,159 @@ const PlaceOrderScreen = ({ history }) => {
   return (
     <>
       <CheckoutSteps step1 step2 step3 step4 />
+
       <Row>
         <Col md={8}>
-          <ListGroup variant='flush'>
-            <ListGroup.Item>
-              <h2>Shipping</h2>
-              <p>
-                <strong>Address:</strong>
-                {cart.shippingAddress.address}, {cart.shippingAddress.city}{' '}
-                {cart.shippingAddress.postalCode},{' '}
-                {cart.shippingAddress.country}
-              </p>
-            </ListGroup.Item>
+          <div style={{
+            background: '#1a1a2e',
+            border: '1px solid rgba(51,255,204,0.15)',
+            borderRadius: '16px',
+            padding: '24px',
+            marginBottom: '24px'
+          }}>
+            <h3 style={{ color: '#33FFCC', marginBottom: '16px' }}>
+              <i className='fas fa-map-marker-alt me-2'></i>Địa Chỉ Giao Hàng
+            </h3>
+            <div style={{ color: '#ffffff' }}>
+              <p><strong style={{ color: '#33FFCC' }}>Người nhận:</strong> {cart.shippingAddress.fullName}</p>
+              <p><strong style={{ color: '#33FFCC' }}>SĐT:</strong> {cart.shippingAddress.phone}</p>
+              <p><strong style={{ color: '#33FFCC' }}>Tỉnh/TP:</strong> {cart.shippingAddress.province}</p>
+              <p><strong style={{ color: '#33FFCC' }}>Phường/Xã:</strong> {cart.shippingAddress.ward}</p>
+              <p><strong style={{ color: '#33FFCC' }}>Số nhà, tên đường:</strong> {cart.shippingAddress.detail}</p>
+            </div>
+          </div>
 
-            <ListGroup.Item>
-              <h2>Payment Method</h2>
-              <strong>Method: </strong>
+
+          <ListGroup.Item>
+            <h2>Phương Thức Thanh Toán</h2>
+            <p style={{ color: '#ffffff' }}>
+              <strong>Phương thức: </strong>
               {cart.paymentMethod}
-            </ListGroup.Item>
+            </p>
+          </ListGroup.Item>
 
-            <ListGroup.Item>
-              <h2>Order Items</h2>
-              {cart.cartItems.length === 0 ? (
-                <Message>Your cart is empty</Message>
-              ) : (
-                <ListGroup variant='flush'>
-                  {cart.cartItems.map((item, index) => (
-                    <ListGroup.Item key={index}>
-                      <Row>
-                        <Col md={1}>
-                          <Image
-                            src={item.image}
-                            alt={item.name}
-                            fluid
-                            rounded
-                          />
-                        </Col>
-                        <Col>
-                          <Link to={`/product/${item.product}`}>
-                            {item.name}
-                          </Link>
-                        </Col>
-                        <Col md={4}>
-                          {item.qty} x ${item.price} = ${item.qty * item.price}
-                        </Col>
-                      </Row>
-                    </ListGroup.Item>
-                  ))}
-                </ListGroup>
-              )}
-            </ListGroup.Item>
-          </ListGroup>
+          <div style={{
+            background: '#1a1a2e',
+            border: '1px solid rgba(51,255,204,0.15)',
+            borderRadius: '16px',
+            padding: '24px',
+            marginBottom: '24px'
+          }}>
+            <h3 style={{ color: '#33FFCC', marginBottom: '16px' }}>
+              <i className='fas fa-shopping-bag me-2'></i>Sản Phẩm Đặt Hàng
+            </h3>
+            {cart.cartItems.length === 0 ? (
+              <Message>Giỏ Hàng Trống</Message>
+            ) : (
+              <div>
+                {cart.cartItems.map((item, index) => (
+                  <div key={index} style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '16px',
+                    padding: '16px 0',
+                    borderBottom: index < cart.cartItems.length - 1 ? '1px solid rgba(255,255,255,0.08)' : 'none'
+                  }}>
+                    <Image
+                      src={item.image}
+                      alt={item.name}
+                      style={{
+                        width: '80px',
+                        height: '80px',
+                        objectFit: 'contain',
+                        borderRadius: '12px',
+                        border: '1px solid rgba(51,255,204,0.15)'
+                      }}
+                    />
+                    <div style={{ flex: 1 }}>
+                      <Link to={`/product/${item.product}`} style={{ 
+                        color: '#ffffff', 
+                        textDecoration: 'none', 
+                        fontWeight: '600' 
+                      }}>
+                        {item.name}
+                      </Link>
+                    </div>
+                    <span 
+                      className="price-text price-tooltip" 
+                      data-full-price={formatVND(item.qty * item.price) + 'đ'}
+                      title={formatVND(item.qty * item.price) + 'đ'}
+                      style={{ color: '#33FFCC', fontWeight: '700', minWidth: '120px', textAlign: 'right', display: 'inline-block' }}
+                    >
+                      {formatVND(item.qty * item.price)}đ
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </Col>
+
         <Col md={4}>
           <Card>
             <ListGroup variant='flush'>
               <ListGroup.Item>
-                <h2>Order Summary</h2>
+                <h2>Tổng Đơn Hàng</h2>
               </ListGroup.Item>
+
               <ListGroup.Item>
                 <Row>
-                  <Col>Items</Col>
-                  <Col>${cart.itemsPrice}</Col>
+                  <Col>Sản Phẩm</Col>
+                  <Col>{formatVND(cart.itemsPrice)} đ</Col>
                 </Row>
               </ListGroup.Item>
+
               <ListGroup.Item>
                 <Row>
-                  <Col>Shipping</Col>
-                  <Col>${cart.shippingPrice}</Col>
+                  <Col>Vận Chuyển</Col>
+                  <Col>{formatVND(cart.shippingPrice)} đ</Col>
                 </Row>
               </ListGroup.Item>
+
               <ListGroup.Item>
                 <Row>
-                  <Col>Tax</Col>
-                  <Col>${cart.taxPrice}</Col>
+                  <Col>Thuế</Col>
+                  <Col>{formatVND(cart.taxPrice)} đ</Col>
                 </Row>
               </ListGroup.Item>
+
               <ListGroup.Item>
                 <Row>
-                  <Col>Total</Col>
-                  <Col>${cart.totalPrice}</Col>
+                  <Col>Tổng</Col>
+                  <Col>
+                    <strong>
+                      <span 
+                        className="price-text price-tooltip" 
+                        data-full-price={formatVND(cart.totalPrice) + ' đ'}
+                        title={formatVND(cart.totalPrice) + ' đ'}
+                      >
+                        {formatVND(cart.totalPrice)} đ
+                      </span>
+                    </strong>
+                  </Col>
                 </Row>
               </ListGroup.Item>
+
               <ListGroup.Item>
                 {error && <Message variant='danger'>{error}</Message>}
               </ListGroup.Item>
+
               <ListGroup.Item>
                 <Button
                   type='button'
                   className='btn-block'
-                  disabled={cart.cartItems === 0}
+                  disabled={cart.cartItems.length === 0}
                   onClick={placeOrderHandler}
+                  style={{
+                    background: '#33FFCC',
+                    border: 'none',
+                    color: '#0f0f23',
+                    fontWeight: '700',
+                    padding: '16px',
+                    borderRadius: '12px'
+                  }}
                 >
-                  Place Order
+                  <i className='fas fa-credit-card me-2'></i>Đặt Hàng
                 </Button>
               </ListGroup.Item>
             </ListGroup>

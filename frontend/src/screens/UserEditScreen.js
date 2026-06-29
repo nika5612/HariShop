@@ -8,6 +8,12 @@ import FormContainer from '../components/FormContainer'
 import { getUserDetails, updateUser } from '../actions/userActions'
 import { USER_UPDATE_RESET } from '../constants/userConstants'
 
+
+
+const validateEmail = (email) => {
+  const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  return regex.test(email)
+}
 const UserEditScreen = ({ match, history }) => {
   const userId = match.params.id
 
@@ -53,7 +59,7 @@ const UserEditScreen = ({ match, history }) => {
         Go Back
       </Link>
       <FormContainer>
-        <h1>Edit User</h1>
+        <h1>Chỉnh Sửa Thông Tin Người Dùng</h1>
         {loadingUpdate && <Loader />}
         {errorUpdate && <Message variant='danger'>{errorUpdate}</Message>}
         {loading ? (
@@ -63,7 +69,7 @@ const UserEditScreen = ({ match, history }) => {
         ) : (
           <Form onSubmit={submitHandler}>
             <Form.Group controlId='name'>
-              <Form.Label>Name</Form.Label>
+              <Form.Label>Tên</Form.Label>
               <Form.Control
                 type='name'
                 placeholder='Enter name'
@@ -78,9 +84,15 @@ const UserEditScreen = ({ match, history }) => {
                 type='email'
                 placeholder='Enter email'
                 value={email}
+                required
+                isInvalid={email && !validateEmail(email)}
                 onChange={(e) => setEmail(e.target.value)}
-              ></Form.Control>
+              />
+              <Form.Control.Feedback type='invalid'>
+                Email không đúng định dạng
+              </Form.Control.Feedback>
             </Form.Group>
+
 
             <Form.Group controlId='isadmin'>
               <Form.Check
@@ -92,7 +104,7 @@ const UserEditScreen = ({ match, history }) => {
             </Form.Group>
 
             <Button type='submit' variant='primary'>
-              Update
+              Sửa
             </Button>
           </Form>
         )}

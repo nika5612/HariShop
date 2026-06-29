@@ -1,6 +1,8 @@
 import { createStore, combineReducers, applyMiddleware } from 'redux'
-import thunk from 'redux-thunk'
+import { thunk } from 'redux-thunk'
 import { composeWithDevTools } from 'redux-devtools-extension'
+
+// PRODUCT
 import {
   productListReducer,
   productDetailsReducer,
@@ -9,8 +11,13 @@ import {
   productUpdateReducer,
   productReviewCreateReducer,
   productTopRatedReducer,
+  productDeleteReviewReducer,
 } from './reducers/productReducers'
+
+// CART
 import { cartReducer } from './reducers/cartReducers'
+
+// USER
 import {
   userLoginReducer,
   userRegisterReducer,
@@ -19,7 +26,12 @@ import {
   userListReducer,
   userDeleteReducer,
   userUpdateReducer,
+  userForgotPasswordReducer,
+  userResetPasswordReducer,
+  userProfileReducer,
 } from './reducers/userReducers'
+
+// ORDER
 import {
   orderCreateReducer,
   orderDetailsReducer,
@@ -27,8 +39,21 @@ import {
   orderDeliverReducer,
   orderListMyReducer,
   orderListReducer,
+  orderCancelRequestReducer,
+  orderApproveCancelReducer,
+  orderRejectCancelReducer,
+  orderTrackReducer,
+  orderAdminRevenueReducer,
+  orderAdminBrandReducer,
+  orderAdminDeleteReducer,
 } from './reducers/orderReducers'
 
+
+// ADDRESS
+import { addressReducer } from './reducers/addressReducers'
+import { shippingQuotesReducer, shippingTrackReducer } from './reducers/shippingReducers'
+
+// ================= REDUCER =================
 const reducer = combineReducers({
   productList: productListReducer,
   productDetails: productDetailsReducer,
@@ -37,7 +62,9 @@ const reducer = combineReducers({
   productUpdate: productUpdateReducer,
   productReviewCreate: productReviewCreateReducer,
   productTopRated: productTopRatedReducer,
+
   cart: cartReducer,
+
   userLogin: userLoginReducer,
   userRegister: userRegisterReducer,
   userDetails: userDetailsReducer,
@@ -45,34 +72,77 @@ const reducer = combineReducers({
   userList: userListReducer,
   userDelete: userDeleteReducer,
   userUpdate: userUpdateReducer,
+
   orderCreate: orderCreateReducer,
   orderDetails: orderDetailsReducer,
   orderPay: orderPayReducer,
   orderDeliver: orderDeliverReducer,
   orderListMy: orderListMyReducer,
   orderList: orderListReducer,
+  orderCancelRequest: orderCancelRequestReducer,
+  orderApproveCancel: orderApproveCancelReducer,
+  orderRejectCancel: orderRejectCancelReducer,
+  orderTrack: orderTrackReducer,
+
+  // ADMIN DASHBOARD
+  orderAdminRevenue: orderAdminRevenueReducer,
+  orderAdminBrand: orderAdminBrandReducer,
+  orderAdminDelete: orderAdminDeleteReducer,
+
+
+  // ADDRESS BOOK
+  address: addressReducer,
+
+  productDeleteReview: productDeleteReviewReducer,
+  userForgotPassword: userForgotPasswordReducer,
+  userResetPassword: userResetPasswordReducer,
+  userProfile: userProfileReducer,
+
+  shippingQuotes: shippingQuotesReducer,
+  shippingTrack: shippingTrackReducer,
 })
 
-const cartItemsFromStorage = localStorage.getItem('cartItems')
-  ? JSON.parse(localStorage.getItem('cartItems'))
-  : []
+// ================= LOCAL STORAGE =================
+const safeParseStorage = (key, defaultValue) => {
+  try {
+    const item = localStorage.getItem(key)
+    if (!item || item === 'undefined' || item === 'null') {
+      localStorage.removeItem(key)
+      return defaultValue
+    }
+    const parsed = JSON.parse(item)
+    if (key === 'cartItems' && !Array.isArray(parsed)) return defaultValue
+    if (key === 'userInfo' && typeof parsed !== 'object') return defaultValue
+    if (key === 'shippingAddress' && typeof parsed !== 'object') return defaultValue
+    return parsed
+  } catch (e) {
+    console.warn(`Clearing corrupted localStorage for ${key}:`, e.message)
+    localStorage.removeItem(key)
+    return defaultValue
+  }
+}
 
-const userInfoFromStorage = localStorage.getItem('userInfo')
-  ? JSON.parse(localStorage.getItem('userInfo'))
-  : null
+const cartItemsFromStorage = safeParseStorage('cartItems', [])
+const userInfoFromStorage = safeParseStorage('userInfo', null)
+const shippingAddressFromStorage = safeParseStorage('shippingAddress', {})
 
-const shippingAddressFromStorage = localStorage.getItem('shippingAddress')
-  ? JSON.parse(localStorage.getItem('shippingAddress'))
-  : {}
-
+// ================= INITIAL STATE =================
 const initialState = {
   cart: {
     cartItems: cartItemsFromStorage,
     shippingAddress: shippingAddressFromStorage,
+    deliveryMethod: safeParseStorage('deliveryMethod', 'nhanh'),
+    voucherCode: '',
+    shopMessage: '',
+    deliveryFee: 20000,
+    voucherDiscount: 0,
   },
-  userLogin: { userInfo: userInfoFromStorage },
+  userLogin: {
+    userInfo: userInfoFromStorage,
+  },
 }
 
+// ================= STORE =================
 const middleware = [thunk]
 
 const store = createStore(

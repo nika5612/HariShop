@@ -1,4 +1,5 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
+
 import { LinkContainer } from 'react-router-bootstrap'
 import { Table, Button, Row, Col } from 'react-bootstrap'
 import { useDispatch, useSelector } from 'react-redux'
@@ -8,9 +9,10 @@ import Paginate from '../components/Paginate'
 import {
   listProducts,
   deleteProduct,
-  createProduct,
 } from '../actions/productActions'
 import { PRODUCT_CREATE_RESET } from '../constants/productConstants'
+import ConfirmDeleteModal from '../components/ConfirmDeleteModal'
+
 
 const ProductListScreen = ({ history, match }) => {
   const pageNumber = match.params.pageNumber || 1
@@ -31,8 +33,6 @@ const ProductListScreen = ({ history, match }) => {
   const {
     loading: loadingCreate,
     error: errorCreate,
-    success: successCreate,
-    product: createdProduct,
   } = productCreate
 
   const userLogin = useSelector((state) => state.userLogin)
@@ -45,40 +45,53 @@ const ProductListScreen = ({ history, match }) => {
       history.push('/login')
     }
 
-    if (successCreate) {
-      history.push(`/admin/product/${createdProduct._id}/edit`)
-    } else {
-      dispatch(listProducts('', pageNumber))
-    }
+    dispatch(listProducts('', pageNumber))
   }, [
     dispatch,
     history,
     userInfo,
     successDelete,
-    successCreate,
-    createdProduct,
     pageNumber,
   ])
 
+  const [showConfirm, setShowConfirm] = useState(false)
+  const [deleteId, setDeleteId] = useState(null)
+
   const deleteHandler = (id) => {
-    if (window.confirm('Are you sure')) {
-      dispatch(deleteProduct(id))
-    }
+    setDeleteId(id)
+    setShowConfirm(true)
   }
 
+
   const createProductHandler = () => {
-    dispatch(createProduct())
+    history.push('/admin/product/new')
   }
 
   return (
     <>
+      <ConfirmDeleteModal
+        show={showConfirm}
+        title={'Xoá sản phẩm này?'}
+        confirmText={'Xoá'}
+        cancelText={'Huỷ'}
+        onCancel={() => {
+          setShowConfirm(false)
+          setDeleteId(null)
+        }}
+        onConfirm={() => {
+          dispatch(deleteProduct(deleteId))
+          setShowConfirm(false)
+          setDeleteId(null)
+        }}
+      />
+
       <Row className='align-items-center'>
         <Col>
-          <h1>Products</h1>
+          <h1>Sản Phẩm</h1>
         </Col>
         <Col className='text-right'>
           <Button className='my-3' onClick={createProductHandler}>
-            <i className='fas fa-plus'></i> Create Product
+            <i className='fas fa-plus'></i> Tạo Sản Phẩm
           </Button>
         </Col>
       </Row>
@@ -96,11 +109,15 @@ const ProductListScreen = ({ history, match }) => {
             <thead>
               <tr>
                 <th>ID</th>
-                <th>NAME</th>
-                <th>PRICE</th>
-                <th>CATEGORY</th>
-                <th>BRAND</th>
+                <th>Tên</th>
+                <th>Giá</th>
+                <th>Trọng lượng</th>
+                <th>Danh Mục</th>
+                <th>Hãng</th>
+                <th>Màu sắc</th>
                 <th></th>
+
+
               </tr>
             </thead>
             <tbody>
@@ -108,10 +125,18 @@ const ProductListScreen = ({ history, match }) => {
                 <tr key={product._id}>
                   <td>{product._id}</td>
                   <td>{product.name}</td>
-                  <td>${product.price}</td>
+                  <td>{product.price.toLocaleString('vi-VN')}đ</td>
+                  <td>{product.weight ? `${product.weight}g` : 'N/A'}</td>
                   <td>{product.category}</td>
                   <td>{product.brand}</td>
                   <td>
+                    {Array.isArray(product.colors) && product.colors.length > 0
+                      ? product.colors.map((c) => c.name).join(', ')
+                      : 'N/A'}
+                  </td>
+
+                  <td>
+
                     <LinkContainer to={`/admin/product/${product._id}/edit`}>
                       <Button variant='light' className='btn-sm'>
                         <i className='fas fa-edit'></i>

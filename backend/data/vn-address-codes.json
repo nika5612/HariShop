@@ -1,0 +1,75 @@
+{
+  "provinces": [
+    {
+      "code": "79",
+      "name": "TP. Hồ Chí Minh",
+      "districts": [
+        {
+          "code": "760",
+          "name": "Quận 1",
+          "wards": [
+            {"code": "1905", "name": "Phường Bến Nghé"},
+            {"code": "1906", "name": "Phường Đa Kao"},
+            {"code": "1907", "name": "Phường Cô Giang"},
+            {"code": "1908", "name": "Phường Cầu Ông Lãnh"},
+            {"code": "1909", "name": "Phường Cầu Kho"},
+            {"code": "1910", "name": "Phường Đa Phước"},
+            {"code": "1911", "name": "Phường Nguyễn Cư Trinh"},
+            {"code": "1912", "name": "Phường Nguyễn Thái Bình"}
+          ]
+        },
+        {
+          "code": "761",
+          "name": "Quận 3",
+          "wards": [
+            {"code": "1913", "name": "Phường 1"},
+            {"code": "1914", "name": "Phường 2"},
+            {"code": "1915", "name": "Phường 3"},
+            {"code": "1916", "name": "Phường 4"},
+            {"code": "1917", "name": "Phường 5"},
+            {"code": "1918", "name": "Phường 6"},
+            {"code": "1919", "name": "Phường 7"},
+            {"code": "1920", "name": "Phường 8"},
+            {"code": "1921", "name": "Phường 9"},
+            {"code": "1922", "name": "Phường 10"},
+            {"code": "1923", "name": "Phường 11"},
+            {"code": "1924", "name": "Phường 12"},
+            {"code": "1925", "name": "Phường 13"},
+            {"code": "1926", "name": "Phường 14"}
+          ]
+        },
+        {
+          "code": "772",
+          "name": "Quận 7",
+          "wards": [
+            {"code": "2026", "name": "Phường Tân Phú"},
+            {"code": "2027", "name": "Phường Phú Thuận"},
+            {"code": "2028", "name": "Phường Tân Phong"},
+            {"code": "2029", "name": "Phường Phú Mỹ"},
+            {"code": "2030", "name": "Phường Tân Quy"},
+            {"code": "2031", "name": "Phường Tân Thuận Đông"},
+            {"code": "2032", "name": "Phường Tân Thuận Tây"},
+            {"code": "2033", "name": "Phường Tân Kiểng"},
+            {"code": "2034", "name": "Phường Sa Thảo"},
+            {"code": "2035", "name": "Phường Bình Thuận"}
+          ]
+        }
+      ]
+    },
+    {
+      "code": "01",
+      "name": "Hà Nội",
+      "districts": [
+        {
+          "code": "001",
+          "name": "Ba Đình",
+          "wards": [
+            {"code": "0001", "name": "Phường Phúc Xá"},
+            {"code": "0002", "name": "Phường Trúc Bạch"}
+          ]
+        }
+      ]
+    }
+  ],
+  "note": "Subset for demo. Full data available from official sources."
+}

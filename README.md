@@ -1,127 +1,259 @@
-# ProShop eCommerce Platform
+# 📱 HariShop — Website Bán Điện Thoại
 
-> eCommerce platform built with the MERN stack & Redux.
+Ứng dụng thương mại điện tử bán điện thoại xây dựng trên nền tảng **MERN Stack** (MongoDB, Express, React, Node.js).
 
-### THIS PROJECT IS DEPRECATED
-This project is no longer supported. The new project/course has been released. The code has been cleaned up and now uses Redux Toolkit. You can find the new version [HERE](https://github.com/bradtraversy/proshop-v2)
+> Đồ án môn học — Sinh viên: **Nguyễn Chí Hải** (MSSV: 19110513)  
+> GVHD: **Trương Thị Ngọc Phượng** — Trường ĐH Sư Phạm Kỹ Thuật TP.HCM
 
-![screenshot](https://github.com/bradtraversy/proshop_mern/blob/master/uploads/Screen%20Shot%202020-09-29%20at%205.50.52%20PM.png)
+---
 
-## Features
+## 🚀 Tính năng chính
 
-- Full featured shopping cart
-- Product reviews and ratings
-- Top products carousel
-- Product pagination
-- Product search feature
-- User profile with orders
-- Admin product management
-- Admin user management
-- Admin Order details page
-- Mark orders as delivered option
-- Checkout process (shipping, payment method, etc)
-- PayPal / credit card integration
-- Database seeder (products & users)
+### Người dùng (User)
+- Đăng ký, đăng nhập bằng email/mật khẩu (mã hóa bcrypt)
+- Quên mật khẩu và đặt lại qua email
+- Tìm kiếm, lọc sản phẩm theo hãng và phân khúc giá
+- Sắp xếp sản phẩm: mới nhất, giá tăng dần, giá giảm dần
+- Xem chi tiết sản phẩm, đánh giá và nhận xét
+- Thêm vào giỏ hàng, đặt hàng
+- Thanh toán với nhiều phương thức
+- Sổ địa chỉ giao hàng (thêm, xóa, đặt mặc định)
+- Theo dõi trạng thái đơn hàng
+- Quản lý thông tin tài khoản (Profile)
 
-## Note on Issues
-Please do not post issues here that are related to your own code when taking the course. Add those in the Udemy Q/A. If you clone THIS repo and there are issues, then you can submit
+### Quản trị viên (Admin)
+- Quản lý người dùng: xem, sửa, xóa, cấp/thu hồi quyền admin
+- Quản lý sản phẩm: thêm, sửa, xóa, upload hình ảnh
+- Quản lý đơn hàng: xem chi tiết, cập nhật trạng thái
+- Cài đặt kho hàng (Warehouse Settings)
 
-## Usage
+### Tích hợp vận chuyển
+- **GHN** (Giao Hàng Nhanh)
+- **ViettelPost**
+- **GHTK**
+- **J&T Express**
 
-### ES Modules in Node
+---
 
-We use ECMAScript Modules in the backend in this project. Be sure to have at least Node v14.6+ or you will need to add the "--experimental-modules" flag.
+## 🛠️ Công nghệ sử dụng
 
-Also, when importing a file (not a package), be sure to add .js at the end or you will get a "module not found" error
+| Thành phần | Công nghệ | Phiên bản |
+|---|---|---|
+| Database | MongoDB + Mongoose | 5.10.6 |
+| Backend | Node.js + Express | 4.17.1 |
+| Frontend | React + Redux | — |
+| Xác thực | JSON Web Token (JWT) | 8.5.1 |
+| Mã hóa | bcryptjs | 2.4.3 |
+| Upload ảnh | Multer | 1.4.2 |
+| Môi trường | dotenv / @dotenvx | ^1.39.0 |
+| Dev tools | Nodemon, Concurrently, cross-env | — |
 
-You can also install and setup Babel if you would like
+---
 
-### Env Variables
-
-Create a .env file in then root and add the following
+## 📁 Cấu trúc dự án
 
 ```
-NODE_ENV = development
-PORT = 5000
-MONGO_URI = your mongodb uri
-JWT_SECRET = 'abc123'
-PAYPAL_CLIENT_ID = your paypal client id
+proshop/
+├── backend/
+│   ├── controllers/
+│   │   ├── userController.js        # Xử lý auth, profile, địa chỉ
+│   │   ├── productController.js     # CRUD sản phẩm, review
+│   │   ├── orderController.js       # Đặt hàng, cập nhật trạng thái
+│   │   ├── shippingController.js    # Lấy báo giá vận chuyển
+│   │   └── settingsController.js    # Cài đặt kho hàng
+│   ├── models/
+│   │   ├── userModel.js
+│   │   ├── productModel.js          # Bao gồm reviewSchema + index
+│   │   ├── orderModel.js
+│   │   └── settingsModel.js
+│   ├── routes/
+│   │   ├── userRoutes.js
+│   │   ├── productRoutes.js
+│   │   ├── orderRoutes.js
+│   │   ├── shippingRoutes.js
+│   │   ├── uploadRoutes.js
+│   │   └── settingsRoutes.js
+│   ├── services/
+│   │   └── shipping/
+│   │       ├── ShippingService.js   # Tổng hợp báo giá các hãng
+│   │       ├── providers/
+│   │       │   ├── ghn.js
+│   │       │   ├── viettelpost.js
+│   │       │   ├── ghtk.js
+│   │       │   └── jt.js
+│   │       └── locationMapping.js
+│   ├── utils/
+│   │   ├── generateToken.js         # Tạo JWT token (30 ngày)
+│   │   ├── rateLimit.js             # Giới hạn request
+│   │   └── test-mail.js
+│   └── server.js
+├── frontend/
+│   └── src/
+│       ├── screens/                 # Các màn hình chính
+│       │   ├── HomeScreen.js
+│       │   ├── LoginScreen.js
+│       │   ├── RegisterScreen.js
+│       │   ├── ProductScreen.js
+│       │   ├── CartScreen.js
+│       │   ├── ShippingScreen.js
+│       │   ├── PaymentScreen.js
+│       │   ├── PlaceOrderScreen.js
+│       │   ├── OrderScreen.js
+│       │   ├── ProfileScreen.js
+│       │   ├── AddressBookScreen.js
+│       │   ├── TrackingScreen.js
+│       │   ├── ForgotPasswordScreen.js
+│       │   ├── ResetPasswordScreen.js
+│       │   └── [Admin screens...]
+│       ├── components/
+│       │   ├── Header.js
+│       │   ├── Footer.js
+│       │   ├── Product.js
+│       │   ├── ProductCarousel.js
+│       │   ├── SearchBox.js
+│       │   ├── Rating.js
+│       │   ├── Paginate.js
+│       │   ├── Loader.js
+│       │   ├── Message.js
+│       │   └── SortDropdown.js
+│       ├── actions/                 # Redux action creators
+│       ├── reducers/                # Redux reducers
+│       ├── constants/               # Redux action types
+│       └── App.js
+├── package.json
+└── .env
 ```
 
-### Install Dependencies (frontend & backend)
+---
 
-```
+## ⚙️ Cài đặt và chạy dự án
+
+### Yêu cầu
+- Node.js >= 14
+- MongoDB (local hoặc MongoDB Atlas)
+
+### 1. Clone và cài đặt dependencies
+
+```bash
+# Cài đặt dependencies gốc (backend)
 npm install
-cd frontend
-npm install
+
+# Cài đặt dependencies frontend
+npm install --prefix frontend
 ```
 
-### Run
+### 2. Tạo file `.env` ở thư mục gốc
 
-```
-# Run frontend (:3000) & backend (:5000)
-npm run dev
+```env
+NODE_ENV=development
+PORT=5000
+MONGO_URI=your_mongodb_connection_string
+JWT_SECRET=your_jwt_secret_key
 
-# Run backend only
-npm run server
-```
-
-## Build & Deploy
-
-```
-# Create frontend prod build
-cd frontend
-npm run build
+# Tùy chọn - tích hợp vận chuyển
+GHN_TOKEN=your_ghn_token
+GHN_SHOP_ID=your_ghn_shop_id
+VIETTELPOST_TOKEN=your_viettelpost_token
 ```
 
-There is a Heroku postbuild script, so if you push to Heroku, no need to build manually for deployment to Heroku
+### 3. Nạp dữ liệu mẫu
 
-### Seed Database
-
-You can use the following commands to seed the database with some sample users and products as well as destroy all data
-
-```
-# Import data
+```bash
+# Import dữ liệu mẫu
 npm run data:import
 
-# Destroy data
+# Xóa toàn bộ dữ liệu
 npm run data:destroy
 ```
 
+### 4. Chạy ứng dụng
+
+```bash
+# Chạy cả backend và frontend cùng lúc (development)
+npm start
+
+# Chỉ chạy backend
+npm run server
+
+# Chỉ chạy frontend
+npm run client
 ```
-Sample User Logins
 
-admin@example.com (Admin)
-123456
+Ứng dụng sẽ chạy tại:
+- **Frontend:** http://localhost:3000
+- **Backend API:** http://localhost:5000
 
-john@example.com (Customer)
-123456
+---
 
-jane@example.com (Customer)
-123456
+## 🔗 API Endpoints chính
+
+### User
+| Method | Endpoint | Mô tả | Phân quyền |
+|---|---|---|---|
+| POST | `/api/users/login` | Đăng nhập | Public |
+| POST | `/api/users` | Đăng ký | Public |
+| POST | `/api/users/forgotpassword` | Gửi email reset mật khẩu | Public |
+| PUT | `/api/users/resetpassword/:token` | Đặt lại mật khẩu | Public |
+| GET | `/api/users/profile` | Lấy thông tin tài khoản | Private |
+| PUT | `/api/users/profile` | Cập nhật thông tin | Private |
+| GET/POST | `/api/users/addresses` | Quản lý địa chỉ | Private |
+| GET | `/api/users` | Danh sách users | Admin |
+
+### Product
+| Method | Endpoint | Mô tả | Phân quyền |
+|---|---|---|---|
+| GET | `/api/products` | Danh sách sản phẩm (hỗ trợ lọc, phân trang) | Public |
+| GET | `/api/products/:id` | Chi tiết sản phẩm | Public |
+| POST | `/api/products/:id/reviews` | Viết đánh giá | Private |
+| POST | `/api/products` | Thêm sản phẩm | Admin |
+| PUT | `/api/products/:id` | Sửa sản phẩm | Admin |
+| DELETE | `/api/products/:id` | Xóa sản phẩm | Admin |
+
+### Order
+| Method | Endpoint | Mô tả | Phân quyền |
+|---|---|---|---|
+| POST | `/api/orders` | Tạo đơn hàng | Private |
+| GET | `/api/orders/myorders` | Đơn hàng của tôi | Private |
+| GET | `/api/orders/:id` | Chi tiết đơn hàng | Private |
+| PUT | `/api/orders/:id/pay` | Cập nhật thanh toán | Private |
+| GET | `/api/orders` | Tất cả đơn hàng | Admin |
+| PUT | `/api/orders/:id/deliver` | Cập nhật giao hàng | Admin |
+
+---
+
+## 🗄️ Cơ sở dữ liệu
+
+### Collection `users`
+```
+_id, name, email, password (bcrypt), isAdmin, addresses[], createdAt, updatedAt
 ```
 
+### Collection `products`
+```
+_id, user (ref), name, image, brand, category, description,
+reviews[], rating, numReviews, price, countInStock, weight, createdAt, updatedAt
+```
 
-## License
+### Collection `orders`
+```
+_id, user (ref), orderItems[], shippingAddress{}, paymentMethod,
+itemsPrice, taxPrice, shippingPrice, totalPrice,
+isPaid, paidAt, isDelivered, deliveredAt, createdAt, updatedAt
+```
 
-The MIT License
+---
 
-Copyright (c) 2020 Traversy Media https://traversymedia.com
+## 👤 Tài khoản mẫu (sau khi chạy data:import)
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+| Loại | Email | Mật khẩu |
+|---|---|---|
+| Admin | admin@example.com | 123456 |
+| User | john@example.com | 123456 |
 
-The above copyright notice and this permission notice shall be included in
-all copies or substantial portions of the Software.
+---
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-THE SOFTWARE.
+## 📝 Tác giả
+
+**Nguyễn Chí Hải** — MSSV: 19110513  
+Trường Đại học Sư Phạm Kỹ Thuật TP. Hồ Chí Minh  
+Khoa Công Nghệ Thông Tin — Học kỳ 1, Năm học 2025–2026

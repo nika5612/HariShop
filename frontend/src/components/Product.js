@@ -1,32 +1,125 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
-import { Card } from 'react-bootstrap'
 import Rating from './Rating'
 
 const Product = ({ product }) => {
   return (
-    <Card className='my-3 p-3 rounded'>
-      <Link to={`/product/${product._id}`}>
-        <Card.Img src={product.image} variant='top' />
+    <div style={{
+      background: '#1a1a2e',
+      border: '1px solid rgba(51,255,204,0.15)',
+      borderRadius: '16px',
+      overflow: 'hidden',
+      height: '100%',
+      transition: 'all 0.3s ease',
+      boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+      display: 'flex',
+      flexDirection: 'column',
+    }} className="mb-4 h-100 fade-in-up">
+
+      {/* ── Ảnh ── */}
+      <Link to={`/product/${product._id}`} style={{ textDecoration: 'none', display: 'block' }}>
+        <div style={{
+          position: 'relative',
+          overflow: 'hidden',
+          height: '220px',
+          background: '#0f0f23',
+        }}>
+          <img
+            src={product.image}
+            alt={product.name}
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+              transition: 'transform 0.4s ease',
+            }}
+          />
+          {/* Hot badge */}
+          <div style={{ position: 'absolute', top: '12px', right: '12px', zIndex: 2 }}>
+            <span style={{
+              background: '#33FFCC',
+              color: '#0f0f23',
+              fontWeight: '700',
+              padding: '4px 12px',
+              borderRadius: '20px',
+              fontSize: '12px',
+              boxShadow: '0 4px 12px rgba(51,255,204,0.3)',
+            }}>
+              Hot
+            </span>
+          </div>
+        </div>
       </Link>
 
-      <Card.Body>
-        <Link to={`/product/${product._id}`}>
-          <Card.Title as='div'>
-            <strong>{product.name}</strong>
-          </Card.Title>
+      {/* ── Body ── */}
+      <div style={{
+        padding: '1rem 1rem 1.2rem',
+        display: 'flex',
+        flexDirection: 'column',
+        flex: 1,
+      }}>
+        {/* Tên */}
+        <Link to={`/product/${product._id}`} style={{ textDecoration: 'none', marginBottom: '8px' }}>
+          <h5 style={{
+            color: '#ffffff',
+            fontWeight: '700',
+            fontSize: '1rem',
+            margin: 0,
+            lineHeight: '1.4',
+          }}>
+            {product.name}
+          </h5>
         </Link>
 
-        <Card.Text as='div'>
-          <Rating
-            value={product.rating}
-            text={`${product.numReviews} reviews`}
-          />
-        </Card.Text>
+        {/* Rating */}
+        <div style={{ marginBottom: '10px' }}>
+          <Rating value={product.rating} text={`${product.numReviews} đánh giá`} />
+        </div>
 
-        <Card.Text as='h3'>${product.price}</Card.Text>
-      </Card.Body>
-    </Card>
+        {/* Giá */}
+        <h4 style={{
+          color: '#33FFCC',
+          margin: '0 0 4px 0',
+          fontWeight: '800',
+          fontSize: '1.25rem',
+        }}>
+          {product.price.toLocaleString('vi-VN')}đ
+        </h4>
+
+        {/* Spacer đẩy nút xuống đáy */}
+        <div style={{ flex: 1 }} />
+
+        {/* ── Nút Xem Chi Tiết — ở dưới cùng, full width ── */}
+        <Link
+          to={`/product/${product._id}`}
+          style={{
+            display: 'block',
+            marginTop: '14px',
+            background: 'linear-gradient(135deg, #33FFCC, #00D4AA)',
+            color: '#0f0f23',
+            fontWeight: '800',
+            padding: '11px 0',
+            borderRadius: '12px',
+            textDecoration: 'none',
+            fontSize: '14px',
+            textAlign: 'center',
+            boxShadow: '0 4px 15px rgba(51,255,204,0.25)',
+            transition: 'all 0.25s ease',
+            letterSpacing: '0.3px',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.boxShadow = '0 8px 24px rgba(51,255,204,0.4)'
+            e.currentTarget.style.transform = 'translateY(-1px)'
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.boxShadow = '0 4px 15px rgba(51,255,204,0.25)'
+            e.currentTarget.style.transform = 'translateY(0)'
+          }}
+        >
+          Xem Chi Tiết
+        </Link>
+      </div>
+    </div>
   )
 }
 
