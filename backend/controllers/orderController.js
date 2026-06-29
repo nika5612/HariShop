@@ -476,6 +476,19 @@ const approveCancelOrder = asyncHandler(async (req, res) => {
     console.error('❌ Lỗi hoàn stock (non-fatal):', e.message)
   }
 
+  // ── Hoàn lại usedCount voucher khi Admin chấp thuận hủy ────────
+  if (order.voucherCode) {
+    try {
+      await Voucher.findOneAndUpdate(
+        { code: order.voucherCode, usedCount: { $gt: 0 } },
+        { $inc: { usedCount: -1 } }
+      )
+      console.log(`✅ Hoàn usedCount voucher (cancel): ${order.voucherCode}`)
+    } catch (e) {
+      console.error('❌ Lỗi hoàn usedCount voucher (non-fatal):', e.message)
+    }
+  }
+
   order.isCancelled  = true
   order.cancelledAt  = Date.now()
   order.cancelReason = order.cancelRequest?.reason || ''
@@ -636,6 +649,19 @@ const deleteOrderByAdmin = asyncHandler(async (req, res) => {
       })
     } catch (e) {
       console.warn('⚠️ Không thể hủy vận đơn GHN khi xóa order (non-fatal):', e?.message)
+    }
+  }
+
+  // ── Hoàn lại usedCount voucher khi Admin xóa đơn ────────
+  if (order.voucherCode) {
+    try {
+      await Voucher.findOneAndUpdate(
+        { code: order.voucherCode, usedCount: { $gt: 0 } },
+        { $inc: { usedCount: -1 } }
+      )
+      console.log(`✅ Hoàn usedCount voucher (delete): ${order.voucherCode}`)
+    } catch (e) {
+      console.error('❌ Lỗi hoàn usedCount voucher khi xóa (non-fatal):', e.message)
     }
   }
 
