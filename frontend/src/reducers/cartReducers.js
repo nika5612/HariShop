@@ -83,6 +83,22 @@ export const cartReducer = (
     case CART_CLEAR_ITEMS:
       return { ...state, cartItems: [] }
 
+    // Xoá các item đã mua sau khi đặt hàng (hướng A)
+    case 'CART_REMOVE_PURCHASED_ITEMS': {
+      const purchasedItems = action.payload?.purchasedItems || []
+      return {
+        ...state,
+        cartItems: state.cartItems.filter((ci) => {
+          return !purchasedItems.some(
+            (pi) =>
+              pi.product === ci.product &&
+              (pi.color || '') === (ci.color || '')
+          )
+        }),
+      }
+    }
+
+
     default:
       return state
   }

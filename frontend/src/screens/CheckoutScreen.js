@@ -77,11 +77,13 @@ const CheckoutScreen = ({ history, location }) => {
   const { loading: quotesLoading, error: quotesError, quotes = [] } = shippingQuotesState
 
   const [selectedCartItems, setSelectedCartItems] = useState([])
+  const [selectedCartItemsLoaded, setSelectedCartItemsLoaded] = useState(false)
   const [selectedAddress, setSelectedAddress] = useState(null)
   const [showAddressList, setShowAddressList] = useState(false)
   const [deliveryMethod, setDeliveryMethod] = useState('fallback')
   const [showDeliveryOptions, setShowDeliveryOptions] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState('cod')
+
   const [voucherInput, setVoucherInput] = useState('')
   const [voucherApplied, setVoucherApplied] = useState(false) // flag đã áp thành công
   const [voucherDiscount, setVoucherDiscount] = useState(0) // số tiền giảm
@@ -106,12 +108,18 @@ const CheckoutScreen = ({ history, location }) => {
     if (!isBuyNow) {
       try {
         const saved = localStorage.getItem('selectedCartItems')
-        if (saved) setSelectedCartItems(JSON.parse(saved))
+        if (saved) {
+          setSelectedCartItems(JSON.parse(saved))
+        }
       } catch (e) {
-
         console.error('Failed to load selectedCartItems:', e)
+      } finally {
+        setSelectedCartItemsLoaded(true)
       }
+    } else {
+      setSelectedCartItemsLoaded(true)
     }
+
 
     if (isBuyNow && buyNowProductId) {
       dispatch(listProductDetails(buyNowProductId))
@@ -172,15 +180,27 @@ const CheckoutScreen = ({ history, location }) => {
   useEffect(() => {
     const effectiveCartItems = isBuyNow && buyNowItem
       ? [buyNowItem]
-      : cartItems.filter((item) => selectedCartItems.includes(item.product))
+      : cartItems.filter((item) =>
+          // selectedCartItems có thể là [{product, color}] (đúng chuẩn hiện tại)
+          selectedCartItems.some(
+            (sel) =>
+              typeof sel === 'object'
+                ? sel.product === item.product && sel.color === (item.color || '')
+                : sel === item.product
+          )
+        )
 
     if (!selectedAddress || effectiveCartItems.length === 0) return
+    // Chặn race condition lần đầu vào checkout từ cart
+    if (!isBuyNow && !selectedCartItemsLoaded) return
 
     const toAddress = {
       province: selectedAddress.province || '',
+      district: selectedAddress.district || '',
       ward: selectedAddress.ward || '',
       detail: selectedAddress.detail || '',
-      district: selectedAddress.district || '',
+
+      // GHN resolver hỗ trợ cả tên lẫn id/code
       districtId: selectedAddress.ghnDistrictId || selectedAddress.districtId,
       wardCode: selectedAddress.ghnWardCode || selectedAddress.wardCode,
     }
@@ -189,7 +209,8 @@ const CheckoutScreen = ({ history, location }) => {
       dispatch(getShippingQuotes(effectiveCartItems, toAddress))
     }, 400)
     return () => clearTimeout(t)
-  }, [dispatch, selectedAddress, cartItems, selectedCartItems, isBuyNow, buyNowItem])
+  }, [dispatch, selectedAddress, cartItems, selectedCartItems, selectedCartItemsLoaded, isBuyNow, buyNowItem])
+
 
   useEffect(() => {
     if (success && order) {

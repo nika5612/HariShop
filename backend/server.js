@@ -215,12 +215,9 @@ app.get('/api/health/email', async (req, res) => {
   }
 })
 
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')))
+app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')))
 
-
-// Uploads folder
-app.use('/uploads', express.static(path.join(__dirname, '/uploads')))
-
-// Production frontend
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, '../frontend/build')))
   app.get('*', (req, res) =>

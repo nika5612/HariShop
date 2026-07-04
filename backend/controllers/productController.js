@@ -107,7 +107,18 @@ const createProduct = asyncHandler(async (req, res) => {
     price:       price       || 0,
     weight:      weight      || 0,
     user:        req.user._id,
-    image:       image       || '/images/sample.jpg',
+    // Chuẩn hóa image: nếu frontend gửi '/uploads/...' thì giữ nguyên.
+    // Nếu gửi lại là 'uploads/...' hoặc fileName thì tự thêm '/uploads/'.
+    image:
+      typeof image === 'string'
+        ? image.startsWith('/uploads/')
+          ? image
+          : image.startsWith('uploads/')
+            ? `/${image}`
+            : image.startsWith('/')
+              ? image
+              : `/uploads/${image}`
+        : '/images/sample.jpg',
     brand:       brand       || 'Sample brand',
     category:    category    || 'Sample category',
     numReviews:  0,
@@ -138,7 +149,17 @@ const updateProduct = asyncHandler(async (req, res) => {
     product.price       = price
     product.weight      = weight
     product.description = description
-    product.image       = image
+    // Chuẩn hóa lại image cho update
+    product.image =
+      typeof image === 'string'
+        ? image.startsWith('/uploads/')
+          ? image
+          : image.startsWith('uploads/')
+            ? `/${image}`
+            : image.startsWith('/')
+              ? image
+              : `/uploads/${image}`
+        : product.image
     product.brand       = brand
     product.category    = category
 

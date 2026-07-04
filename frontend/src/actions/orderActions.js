@@ -66,13 +66,33 @@ export const createOrder = (order) => async (dispatch, getState) => {
     const { data } = await axios.post(`/api/orders`, order, config)
 
     dispatch({ type: ORDER_CREATE_SUCCESS, payload: data })
-    dispatch({ type: CART_CLEAR_ITEMS })
-    localStorage.removeItem('cartItems')
+
+    // Xoá khỏi cart chỉ những item đã mua
+    // order.orderItems được frontend gửi lên theo danh sách đã tick
+    const purchasedItems = Array.isArray(order?.orderItems) ? order.orderItems : []
+    dispatch({
+      type: 'CART_REMOVE_PURCHASED_ITEMS',
+      payload: { purchasedItems },
+    })
+
+    // cập nhật localStorage tương ứng
+    // (cart reducer sẽ cập nhật cart.cartItems; phần localStorage này giúp đồng bộ ngay lập tức)
+    const state = getState()
+    const remaining = (state.cart.cartItems || []).filter((ci) => {
+      return !purchasedItems.some(
+        (pi) =>
+          pi.product === ci.product &&
+          (pi.color || '') === (ci.color || '')
+      )
+    })
+    localStorage.setItem('cartItems', JSON.stringify(remaining))
+
     localStorage.removeItem('deliveryMethod')
     localStorage.removeItem('voucherCode')
     localStorage.removeItem('shopMessage')
     localStorage.removeItem('deliveryFee')
     localStorage.removeItem('voucherDiscount')
+
   } catch (error) {
     const message = getErrorMessage(error)
     if (message === 'Not authorized, token failed') dispatch(logout())

@@ -13,6 +13,32 @@ const PlaceOrderScreen = ({ history }) => {
 
   const cart = useSelector((state) => state.cart)
 
+  // Lấy danh sách sản phẩm đã tick từ CartScreen (localStorage)
+  const selectedCartItems = (() => {
+    try {
+      const raw = localStorage.getItem('selectedCartItems')
+      if (!raw) return null
+      const parsed = JSON.parse(raw)
+      return Array.isArray(parsed) ? parsed : null
+    } catch {
+      return null
+    }
+  })()
+
+  const selectedKeys = (selectedCartItems || []).map(
+    (it) => `${it.product}_${it.color || ''}`
+  )
+
+  // Nếu có selected thì chỉ đặt các item đó; nếu không có selected thì fallback đặt toàn bộ cart
+  const orderItems =
+    selectedKeys.length > 0
+      ? (cart.cartItems || []).filter((item) =>
+          selectedKeys.includes(`${item.product}_${item.color || ''}`)
+        )
+      : cart.cartItems || []
+
+
+
   // VN validation for missing shipping fields - Simplified (no district)
   const missingShipping = !cart.shippingAddress.fullName || !cart.shippingAddress.phone || 
       !cart.shippingAddress.province || 
@@ -36,18 +62,20 @@ const PlaceOrderScreen = ({ history }) => {
     return (Math.round(num * 100) / 100).toFixed(2)
   }
 
-  cart.itemsPrice = addDecimals(
-    cart.cartItems.reduce((acc, item) => acc + item.price * item.qty, 0)
+  // Tính tiền dựa trên danh sách orderItems (đã lọc)
+  const itemsPrice = addDecimals(
+    orderItems.reduce((acc, item) => acc + item.price * item.qty, 0)
   )
 
-  cart.shippingPrice = addDecimals(cart.itemsPrice > 1000000 ? 0 : 30000)
-  cart.taxPrice = addDecimals(Number((0.1 * cart.itemsPrice).toFixed(2)))
+  const shippingPrice = addDecimals(itemsPrice > 1000000 ? 0 : 30000)
+  const taxPrice = addDecimals(Number((0.1 * itemsPrice).toFixed(2)))
 
-  cart.totalPrice = (
-    Number(cart.itemsPrice) +
-    Number(cart.shippingPrice) +
-    Number(cart.taxPrice)
+  const totalPrice = (
+    Number(itemsPrice) +
+    Number(shippingPrice) +
+    Number(taxPrice)
   ).toFixed(2)
+
 
   const orderCreate = useSelector((state) => state.orderCreate)
   const { order, success, error } = orderCreate
@@ -63,16 +91,25 @@ const PlaceOrderScreen = ({ history }) => {
   const placeOrderHandler = () => {
     dispatch(
       createOrder({
-        orderItems: cart.cartItems,
+        orderItems,
         shippingAddress: cart.shippingAddress,
         paymentMethod: cart.paymentMethod,
-        itemsPrice: cart.itemsPrice,
-        shippingPrice: cart.shippingPrice,
-        taxPrice: cart.taxPrice,
-        totalPrice: cart.totalPrice,
+        itemsPrice: orderItems.reduce((acc, item) => acc + item.price * item.qty, 0),
+        shippingPrice: cart.itemsPrice > 1000000 ? 0 : 30000,
+        taxPrice: Number((0.1 * orderItems.reduce((acc, item) => acc + item.price * item.qty, 0)).toFixed(2)),
+        totalPrice: (
+          Number(
+            orderItems.reduce((acc, item) => acc + item.price * item.qty, 0)
+          ) +
+          Number(cart.itemsPrice > 1000000 ? 0 : 30000) +
+          Number(
+            (0.1 * orderItems.reduce((acc, item) => acc + item.price * item.qty, 0)).toFixed(2)
+          )
+        ).toFixed(2),
       })
     )
   }
+
 
   return (
     <>

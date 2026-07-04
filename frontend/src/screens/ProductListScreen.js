@@ -85,12 +85,10 @@ const ProductListScreen = ({ history, match }) => {
         }}
       />
 
-      <Row className='align-items-center'>
-        <Col>
-          <h1>Sản Phẩm</h1>
-        </Col>
-        <Col className='text-right'>
-          <Button className='my-3' onClick={createProductHandler}>
+      <h1 className='text-center'>Sản Phẩm</h1>
+      <Row className='justify-content-end mb-3'>
+        <Col xs='auto'>
+          <Button onClick={createProductHandler}>
             <i className='fas fa-plus'></i> Tạo Sản Phẩm
           </Button>
         </Col>

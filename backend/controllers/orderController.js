@@ -498,9 +498,6 @@ const approveCancelOrder = asyncHandler(async (req, res) => {
   res.json(updatedOrder)
 })
 
-// @desc    Admin rejects order cancellation request
-// @route   PUT /api/orders/:id/reject-cancel
-// @access  Private/Admin
 const rejectCancelOrder = asyncHandler(async (req, res) => {
   const order = await Order.findById(req.params.id)
   if (!order) { res.status(404); throw new Error('Không tìm thấy đơn hàng') }
@@ -509,9 +506,6 @@ const rejectCancelOrder = asyncHandler(async (req, res) => {
   res.json(updatedOrder)
 })
 
-// @desc    SePay webhook
-// @route   POST /api/orders/sepay-webhook
-// @access  Public
 const sepayWebhook = async (req, res) => {
   try {
     const data = req.body
@@ -652,7 +646,6 @@ const deleteOrderByAdmin = asyncHandler(async (req, res) => {
     }
   }
 
-  // ── Hoàn lại usedCount voucher khi Admin xóa đơn ────────
   if (order.voucherCode) {
     try {
       await Voucher.findOneAndUpdate(
