@@ -177,7 +177,7 @@ HariShop/
 ### 1. Clone repository
 
 ```bash
-git clone https://github.com/your-username/harishop.git
+git clone https://github.com/nika5612/HariShop
 cd harishop
 ```
 
