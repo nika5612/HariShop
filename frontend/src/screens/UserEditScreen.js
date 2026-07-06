@@ -75,8 +75,10 @@ const UserEditScreen = ({ match, history }) => {
                 placeholder='Enter name'
                 value={name}
                 onChange={(e) => setName(e.target.value)}
+                style={{ color: '#eef0f7', background: '#0f0f23', borderColor: 'rgba(51,255,204,0.35)' }}
               ></Form.Control>
             </Form.Group>
+
 
             <Form.Group controlId='email'>
               <Form.Label>Email Address</Form.Label>
@@ -87,11 +89,13 @@ const UserEditScreen = ({ match, history }) => {
                 required
                 isInvalid={email && !validateEmail(email)}
                 onChange={(e) => setEmail(e.target.value)}
+                style={{ color: '#eef0f7', background: '#0f0f23', borderColor: 'rgba(51,255,204,0.35)' }}
               />
               <Form.Control.Feedback type='invalid'>
                 Email không đúng định dạng
               </Form.Control.Feedback>
             </Form.Group>
+
 
 
             <Form.Group controlId='isadmin'>

@@ -45,8 +45,40 @@ textarea {
   color: var(--hs-text) !important;
 }
 
+input,
+select,
+textarea {
+  background-color: rgba(15, 15, 35, 0.75) !important;
+  border-color: rgba(51, 255, 204, 0.35) !important;
+}
+
 input::placeholder,
 textarea::placeholder {
   color: rgba(238, 240, 247, 0.55) !important;
 }
+
+/* Fix “text same color as textbox” for bootstrap */
+.form-control,
+.form-select,
+select.form-control,
+textarea.form-control {
+  color: var(--hs-text) !important;
+}
+
+.form-control::placeholder,
+.form-control::-webkit-input-placeholder,
+textarea.form-control::placeholder {
+  color: rgba(238, 240, 247, 0.55) !important;
+}
+
+.form-control option {
+  color: #ffffff !important;
+  background: #1a1a2e !important;
+}
+
+/* Checkbox/radio label readability inside forms */
+.form-check-label {
+  color: var(--hs-text) !important;
+}
+
 
