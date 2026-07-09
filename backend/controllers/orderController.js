@@ -142,6 +142,23 @@ async function deductStockByColor(orderItems) {
   }
 }
 
+// ── MỚI (A3): danh sách 12 trạng thái hợp lệ + helper ────────────
+const ORDER_STATUSES = [
+  'pending', 'confirmed', 'packing', 'waiting_pickup', 'picked_up',
+  'in_transit', 'out_for_delivery', 'delivered', 'delivery_failed',
+  'returning', 'returned', 'cancelled',
+]
+
+const pushStatusHistory = (order, status, note = '', changedBy = null) => {
+  order.status = status
+  order.statusHistory.push({
+    status,
+    note: note || '',
+    changedAt: new Date(),
+    changedBy: changedBy || undefined,
+  })
+}
+
 const addOrderItems = asyncHandler(async (req, res) => {
   console.log('=== BACKEND RECEIVED ===', JSON.stringify(req.body, null, 2))
   const {
@@ -223,6 +240,11 @@ const addOrderItems = asyncHandler(async (req, res) => {
     shippingPrice:       shippingPrice || 0,
     totalPrice,
     transferContent:     transferContent || '',
+    // ── MỚI (A3): khởi tạo trạng thái timeline ──────────────────
+    status: 'pending',
+    statusHistory: [
+      { status: 'pending', note: 'Đơn hàng đã được đặt thành công', changedAt: new Date() },
+    ],
   })
 
   const createdOrder = await order.save()
@@ -336,11 +358,44 @@ const updateOrderToDelivered = asyncHandler(async (req, res) => {
   if (order) {
     order.isDelivered = true
     order.deliveredAt = Date.now()
+    // ── MỚI (A3): đồng bộ với timeline trạng thái ─────────────
+    pushStatusHistory(order, 'delivered', 'Giao hàng thành công', req.user?._id)
     const updatedOrder = await order.save()
     res.json(updatedOrder)
   } else {
     res.status(404); throw new Error('Order not found')
   }
+})
+
+// @desc    Admin cập nhật trạng thái đơn hàng chi tiết (timeline)
+// @route   PUT /api/orders/:id/status
+// @access  Private/Admin
+const updateOrderStatus = asyncHandler(async (req, res) => {
+  const { status, note } = req.body
+
+  if (!status || !ORDER_STATUSES.includes(status)) {
+    res.status(400)
+    throw new Error(`Trạng thái không hợp lệ. Phải là một trong: ${ORDER_STATUSES.join(', ')}`)
+  }
+
+  const order = await Order.findById(req.params.id)
+  if (!order) { res.status(404); throw new Error('Không tìm thấy đơn hàng') }
+
+  pushStatusHistory(order, status, note, req.user?._id)
+
+  // ── Đồng bộ các cờ cũ (isDelivered/isCancelled) để tương thích
+  // ngược với các phần code khác đang dùng isDelivered/isCancelled ──
+  if (status === 'delivered') {
+    order.isDelivered = true
+    order.deliveredAt = order.deliveredAt || new Date()
+  }
+  if (status === 'cancelled') {
+    order.isCancelled = true
+    order.cancelledAt = order.cancelledAt || new Date()
+  }
+
+  const updatedOrder = await order.save()
+  res.json(updatedOrder)
 })
 
 // @desc    Get logged in user orders
@@ -361,6 +416,25 @@ const getOrders = asyncHandler(async (req, res) => {
   const orders = await Order.find({}).populate('user', 'id name')
   res.json(orders)
 })
+
+// ── MỚI (A3): map trạng thái GHN sang 12 trạng thái nội bộ ───────
+const GHN_TO_ORDER_STATUS = {
+  ready_to_pick: 'waiting_pickup',
+  picking:       'waiting_pickup',
+  money_collect_picking: 'waiting_pickup',
+  picked:        'picked_up',
+  storing:       'in_transit',
+  transporting:  'in_transit',
+  sorting:       'in_transit',
+  delivering:    'out_for_delivery',
+  money_collect_delivering: 'out_for_delivery',
+  delivered:     'delivered',
+  delivery_fail: 'delivery_failed',
+  waiting_to_return: 'returning',
+  return:        'returning',
+  returned:      'returned',
+  cancel:        'cancelled',
+}
 
 // @desc    Track GHN shipment for an order
 // @route   GET /api/orders/:id/track
@@ -400,6 +474,14 @@ const trackOrder = asyncHandler(async (req, res) => {
       location:    '',
       time:        l?.updated_date ? new Date(l.updated_date).toISOString() : null,
     }))
+
+    // ── MỚI (A3): tự động cập nhật status nội bộ theo GHN nếu khác ──
+    const mappedStatus = GHN_TO_ORDER_STATUS[ghnOrder?.status]
+    if (mappedStatus && mappedStatus !== order.status && !order.isCancelled) {
+      pushStatusHistory(order, mappedStatus, `Tự động cập nhật từ GHN (${ghnOrder?.status})`)
+      await order.save()
+    }
+
     res.json({
       available: true,
       orderCode,
@@ -493,6 +575,8 @@ const approveCancelOrder = asyncHandler(async (req, res) => {
   order.cancelledAt  = Date.now()
   order.cancelReason = order.cancelRequest?.reason || ''
   order.cancelRequest = { requested: false, reason: '', requestedAt: null }
+  // ── MỚI (A3): đồng bộ với timeline trạng thái ─────────────────
+  pushStatusHistory(order, 'cancelled', order.cancelReason || 'Đơn hàng đã bị hủy', req.user?._id)
 
   const updatedOrder = await order.save()
   res.json(updatedOrder)
@@ -667,6 +751,7 @@ export {
   getOrderById,
   updateOrderToPaid,
   updateOrderToDelivered,
+  updateOrderStatus,
   getMyOrders,
   getOrders,
   trackOrder,

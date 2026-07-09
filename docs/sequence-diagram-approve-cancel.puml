@@ -1,0 +1,60 @@
+@startuml
+title Sequence Diagram - Admin Approve Cancel Order + GHN Cancel + Restore Stock + Restore Voucher
+
+actor Customer
+actor Admin
+participant Frontend as FE
+participant "OrderRoutes" as OR
+participant "AuthMiddleware (protect+admin)" as Auth
+participant "OrderController" as OC
+participant "Order (Mongoose)" as Order
+participant "Product (Mongoose)" as Product
+participant "Voucher (Mongoose)" as Voucher
+participant "GHN Provider" as GHN
+
+Customer -> FE : Request cancel (reason)
+FE -> OR : PUT /api/orders/:id/cancel-request (Authorization: Bearer)
+OR -> Auth : protect
+Auth -> OR : req.user
+OR -> OC : cancelOrderRequest
+OC -> Order : findById(orderId)
+OC -> Order : set cancelRequest={requested:true,reason,requestedAt}
+OC -> Order : save()
+OC --> OR : 200 updatedOrder
+
+Admin -> FE : Approve cancel
+FE -> OR : PUT /api/orders/:id/approve-cancel (Authorization: Bearer)
+OR -> Auth : protect + admin
+Auth -> OR : req.user (isAdmin=true)
+OR -> OC : approveCancelOrder
+
+OC -> Order : findById(orderId)
+
+alt order.ghnOrderCode exists
+  OC -> GHN : switch-status/cancel(order_codes=[ghnOrderCode])
+  GHN --> OC : response (non-fatal)
+end
+
+OC -> OC : restore stock by color
+loop for each item in order.orderItems
+  OC -> Product : findById(item.product)
+  alt item.color exists
+    OC -> Product : increase Product.colors[color].countInStock by qty
+  else no color
+    OC -> Product : increase Product.countInStock by qty
+  end
+  OC -> Product : save()
+end
+
+alt order.voucherCode exists
+  OC -> Voucher : findOneAndUpdate({code, usedCount:{$gt:0}}, {$inc:{usedCount:-1}})
+end
+
+OC -> Order : set isCancelled=true, cancelledAt=now, cancelReason, cancelRequest cleared
+OC -> Order : save()
+OC --> OR : 200 updatedOrder (cancelled)
+OR --> FE : JSON Order
+FE --> Admin : Show cancelled status
+
+@enduml
+

@@ -93,12 +93,30 @@ const deleteProduct = asyncHandler(async (req, res) => {
   }
 })
 
+// ── MỚI: chuẩn hóa specs từ req.body - mọi trường đều optional ──
+const normalizeSpecs = (specs) => {
+  if (!specs || typeof specs !== 'object') return {}
+  return {
+    ram:          specs.ram          ? String(specs.ram).trim()          : '',
+    storage:      specs.storage      ? String(specs.storage).trim()      : '',
+    battery:      specs.battery      ? Number(specs.battery) || 0        : 0,
+    screenSize:   specs.screenSize   ? String(specs.screenSize).trim()   : '',
+    screenType:   specs.screenType   ? String(specs.screenType).trim()   : '',
+    camera:       specs.camera       ? String(specs.camera).trim()       : '',
+    chip:         specs.chip         ? String(specs.chip).trim()         : '',
+    os:           specs.os           ? String(specs.os).trim()           : '',
+    sim:          specs.sim          ? String(specs.sim).trim()          : '',
+    connectivity: specs.connectivity ? String(specs.connectivity).trim() : '',
+  }
+}
+
 // ── MỚI: createProduct nhận thêm colors ────────────────────────
 const createProduct = asyncHandler(async (req, res) => {
   const {
     name, price, weight, image, brand,
     category, description,
     colors,      // ← MỚI: mảng màu từ frontend
+    specs,       // ← MỚI: thông số kỹ thuật
     countInStock // fallback nếu không có colors
   } = req.body
 
@@ -127,6 +145,8 @@ const createProduct = asyncHandler(async (req, res) => {
     // Nếu không có colors thì dùng countInStock truyền lên
     colors:       Array.isArray(colors) && colors.length > 0 ? colors : [],
     countInStock: Array.isArray(colors) && colors.length > 0 ? 0 : (countInStock || 0),
+    // ── MỚI: thông số kỹ thuật ──────────────────────────────────
+    specs: normalizeSpecs(specs),
   })
 
   const createdProduct = await product.save()
@@ -139,8 +159,12 @@ const updateProduct = asyncHandler(async (req, res) => {
     name, price, weight, description,
     image, brand, category,
     colors,      // ← MỚI
+    specs,       // ← MỚI: thông số kỹ thuật
     countInStock // fallback
   } = req.body
+
+  // 🐛 DEBUG TẠM THỜI — xoá sau khi tìm ra lỗi
+  console.log('🐛 [DEBUG] req.body.specs nhận được:', JSON.stringify(specs))
 
   const product = await Product.findById(req.params.id)
 
@@ -174,7 +198,18 @@ const updateProduct = asyncHandler(async (req, res) => {
       product.countInStock = countInStock
     }
 
+    // ── MỚI: cập nhật thông số kỹ thuật ─────────────────────────
+    product.specs = normalizeSpecs(specs)
+
+    // 🐛 DEBUG TẠM THỜI — xoá sau khi tìm ra lỗi
+    console.log('🐛 [DEBUG] product.specs SAU khi gán:', JSON.stringify(product.specs))
+    console.log('🐛 [DEBUG] isModified specs:', product.isModified('specs'))
+
     const updatedProduct = await product.save()
+
+    // 🐛 DEBUG TẠM THỜI — xoá sau khi tìm ra lỗi
+    console.log('🐛 [DEBUG] updatedProduct.specs SAU KHI SAVE:', JSON.stringify(updatedProduct.specs))
+
     res.json(updatedProduct)
   } else {
     res.status(404)

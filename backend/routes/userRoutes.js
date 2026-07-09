@@ -4,6 +4,8 @@ const router = express.Router()
 import {
   authUser,
   registerUser,
+  verifyOtp,
+  resendOtp,
   forgotPassword,
   resetPassword,
   getUserProfile,
@@ -23,6 +25,10 @@ import { protect, admin } from '../middleware/authMiddleware.js'
 /* ===================== AUTH ===================== */
 router.post('/login', authUser)
 router.route('/').post(registerUser).get(protect, admin, getUsers)
+
+/* ===================== OTP XÁC NHẬN EMAIL ===================== */
+router.post('/verify-otp', verifyOtp)
+router.post('/resend-otp', resendOtp)
 
 /* ===================== FORGOT / RESET PASSWORD ===================== */
 router.post('/forgotpassword', forgotPassword)

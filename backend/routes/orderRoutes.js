@@ -5,6 +5,7 @@ import {
   getOrderById,
   updateOrderToPaid,
   updateOrderToDelivered,
+  updateOrderStatus,
   getMyOrders,
   getOrders,
   trackOrder,
@@ -24,6 +25,7 @@ router.route('/sepay-webhook').post(sepayWebhook)
 router.route('/:id').get(protect, getOrderById)
 router.route('/:id/pay').put(protect, admin, updateOrderToPaid)
 router.route('/:id/deliver').put(protect, admin, updateOrderToDelivered)
+router.route('/:id/status').put(protect, admin, updateOrderStatus)
 router.route('/:id/track').get(protect, trackOrder)
 router.route('/:id/cancel-request').put(protect, cancelOrderRequest)
 router.route('/:id/approve-cancel').put(protect, admin, approveCancelOrder)

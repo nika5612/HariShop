@@ -1,0 +1,208 @@
+@startuml
+skinparam classAttributeIconSize 0
+hide circle
+
+title Class Diagram - HariShop (Backend)
+
+class OrderController {
+  +addOrderItems(req,res)
+  +getOrderById(req,res)
+  +updateOrderToPaid(req,res)
+  +updateOrderToDelivered(req,res)
+  +getMyOrders(req,res)
+  +getOrders(req,res)
+  +trackOrder(req,res)
+  +cancelOrderRequest(req,res)
+  +approveCancelOrder(req,res)
+  +rejectCancelOrder(req,res)
+  +sepayWebhook(req,res)
+  +getAdminRevenueSummary(req,res)
+  +getAdminBrandBreakdown(req,res)
+  +deleteOrderByAdmin(req,res)
+}
+
+class ProductController {
+  +getProducts()
+  +getProductById()
+  +createProduct()
+  +updateProduct()
+  +deleteProduct()
+  +createProductReview()
+  +deleteProductReview()
+  +getTopProducts()
+}
+
+class VoucherController {
+  +applyVoucher()
+  +getVouchers()
+  +createVoucher()
+  +updateVoucher()
+  +deleteVoucher()
+}
+
+class ShippingController {
+  +getShippingQuotes()
+  +trackShipment()
+  +getProvinces()
+  +getDistricts()
+  +getWards()
+}
+
+class AuthMiddleware {
+  +protect
+  +admin
+}
+
+class OrderRoutes {
+  -GET /api/orders/:id/track
+  -POST /api/orders
+  -PUT /api/orders/:id/cancel-request
+  -PUT /api/orders/:id/approve-cancel
+  -PUT /api/orders/:id/deliver
+  -PUT /api/orders/:id/pay
+  -POST /api/orders/sepay-webhook (public)
+}
+
+class OrderAdminRoutes {
+  -GET /api/orders/admin/revenue-summary
+  -GET /api/orders/admin/brand-breakdown
+  -DELETE /api/orders/admin/:id
+}
+
+class Product {
+  +user:ObjectId
+  +name:String
+  +image:String
+  +brand:String
+  +category:String
+  +description:String
+  +reviews:Review[]
+  +rating:Number
+  +numReviews:Number
+  +price:Number
+  +countInStock:Number (derived)
+  +colors:Color[]
+  +weight:Number
+}
+
+class Order {
+  +user:ObjectId
+  +orderItems:OrderItem[]
+  +shippingAddress:ShippingAddress
+  +paymentMethod:String
+  +paymentResult:PaymentResult
+  +taxPrice:Number
+  +shippingPrice:Number
+  +deliveryFee:Number
+  +voucherCode:String
+  +voucherDiscount:Number
+  +totalWeight:Number
+  +itemsPrice:Number
+  +totalPrice:Number
+  +isPaid:Boolean
+  +paidAt:Date
+  +deliveryMethod:String
+  +isDelivered:Boolean
+  +deliveredAt:Date
+  +isCancelled:Boolean
+  +cancelledAt:Date
+  +cancelReason:String
+  +cancelRequest:CancelRequest
+  +shippingProvider:String
+  +shippingServiceCode:String
+  +shippingServiceName:String
+  +shippingEtaDate:Date
+  +shippingTrackingEvents:TrackingEvent[]
+  +ghnOrderCode:String
+  +ghnSortCode:String
+  +ghnTrackingUrl:String
+  +transferContent:String
+}
+
+class OrderItem {
+  +name:String
+  +qty:Number
+  +image:String
+  +price:Number
+  +weight:Number
+  +color:String
+  +product:ObjectId
+}
+
+class ShippingAddress {
+  +fullName:String
+  +phone:String
+  +province:String
+  +district:String
+  +ward:String
+  +detail:String
+  +ghnDistrictId:Number
+  +ghnWardCode:String
+}
+
+class Voucher {
+  +code:String (unique)
+  +type:percent|fixed
+  +value:Number
+  +minOrder:Number
+  +maxDiscount:Number
+  +usageLimit:Number
+  +usedCount:Number
+  +startsAt:Date?
+  +expiresAt:Date
+  +isActive:Boolean
+}
+
+class Settings {
+  +key:String (e.g., global)
+  +warehouseAddress:WarehouseAddress
+}
+
+class WarehouseAddress {
+  +fullName:String
+  +phone:String
+  +province:String
+  +district:String
+  +ward:String
+  +detail:String
+  +ghnDistrictId:Number
+  +ghnWardCode:String
+}
+
+class GHNProvider {
+  +getQuotes()
+  +track()
+}
+
+class SePayWebhookRouter {
+  +POST /api/payments/sepay-webhook (in server.js)
+}
+
+'--- Relationships ---
+
+AuthMiddleware <.. OrderRoutes
+AuthMiddleware <.. OrderAdminRoutes
+
+OrderController --> Order
+OrderController --> Product
+OrderController --> Voucher
+OrderController --> Settings
+OrderController --> GHNProvider
+
+ProductController --> Product
+ProductController --> AuthMiddleware
+
+VoucherController --> Voucher
+VoucherController --> AuthMiddleware
+
+ShippingController --> GHNProvider
+
+Order --> OrderItem
+OrderItem --> Product
+Order --> ShippingAddress
+
+Order --> Voucher : voucherCode
+Settings --> WarehouseAddress
+
+@enduml
+

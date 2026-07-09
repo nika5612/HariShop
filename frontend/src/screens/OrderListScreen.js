@@ -9,6 +9,7 @@ import { listOrders } from '../actions/orderActions'
 import { getAdminRevenueSummary, getAdminBrandBreakdown, deleteOrderByAdmin } from '../actions/orderAdminActions'
 import PieChart from '../components/PieChart'
 import { ORDER_ADMIN_DELETE_RESET } from '../constants/orderConstants'
+import { getOrderStatusInfo } from '../constants/orderStatusConfig'
 import ConfirmDeleteModal from '../components/ConfirmDeleteModal'
 
 
@@ -69,30 +70,10 @@ const OrderListScreen = ({ history }) => {
   }
 
   const renderOrderStatus = (order) => {
-    if (order?.isCancelled) {
-      return (
-        <span style={{ color: '#ff6b6b', fontWeight: 600 }}>
-          <i className='fas fa-times-circle me-1' />Đã hủy
-        </span>
-      )
-    }
-    if (order?.isDelivered) {
-      return (
-        <span style={{ color: '#4cdb80', fontWeight: 600 }}>
-          <i className='fas fa-check-circle me-1' />Thành công
-        </span>
-      )
-    }
-    if (order?.isPaid) {
-      return (
-        <span style={{ color: '#33FFCC', fontWeight: 600 }}>
-          <i className='fas fa-credit-card me-1' />Đã thanh toán
-        </span>
-      )
-    }
+    const statusInfo = getOrderStatusInfo(order)
     return (
-      <span style={{ color: '#ffd166', fontWeight: 600 }}>
-        <i className='fas fa-hourglass-half me-1' />Chờ xử lý
+      <span style={{ color: statusInfo.color, fontWeight: 600, whiteSpace: 'nowrap' }}>
+        <i className={`${statusInfo.icon} me-1`} />{statusInfo.label}
       </span>
     )
   }

@@ -13,6 +13,11 @@ const authUser = asyncHandler(async (req, res) => {
   const user = await User.findOne({ email })
 
   if (user && (await user.matchPassword(password))) {
+    if (!user.isVerified) {
+      res.status(403)
+      throw new Error('Tài khoản chưa xác thực email. Vui lòng kiểm tra hộp thư và nhập mã OTP.')
+    }
+
     res.json({
       _id: user._id,
       name: user.name,
@@ -25,6 +30,153 @@ const authUser = asyncHandler(async (req, res) => {
     res.status(401)
     throw new Error('Email hoặc mật khẩu không chính xác.')
   }
+})
+
+/* ===================== OTP XÁC NHẬN EMAIL (A2) ===================== */
+
+const generateOtp = () => Math.floor(100000 + Math.random() * 900000).toString()
+
+const hashOtp = (otp) => crypto.createHash('sha256').update(otp).digest('hex')
+
+const OTP_EXPIRE_MINUTES = 10
+const OTP_RESEND_COOLDOWN_SECONDS = 60
+
+const sendOtpEmail = async (user, otp) => {
+  const gmailUser = (process.env.GMAIL_USER || '').trim()
+  const gmailAppPassword = (process.env.GMAIL_APP_PASSWORD || '').replace(/\s+/g, '')
+
+  if (!gmailUser || !gmailAppPassword) {
+    console.warn('⚠️ GMAIL_USER/GMAIL_APP_PASSWORD chưa cấu hình - không gửi được email OTP.')
+    return { emailSent: false, emailErrorMessage: 'Email chưa được cấu hình.' }
+  }
+
+  try {
+    const createTransporter = (await import('../config/emailConfig.js')).default
+    const transporter = createTransporter()
+
+    await transporter.sendMail({
+      from: `"HariShop" <${gmailUser}>`,
+      to: user.email,
+      subject: 'HariShop - Mã xác nhận đăng ký (OTP)',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #33FFCC;">Chào ${user.name || 'Khách hàng'},</h2>
+          <p>Cảm ơn bạn đã đăng ký tài khoản tại HariShop. Vui lòng nhập mã OTP bên dưới để xác nhận email:</p>
+          <div style="background: #1a1a2e; color: #33FFCC; padding: 20px; border-radius: 12px;
+                      text-align: center; font-size: 32px; font-weight: bold; letter-spacing: 8px;
+                      border: 2px solid #33FFCC; margin: 20px 0;">
+            ${otp}
+          </div>
+          <p><strong>Lưu ý:</strong></p>
+          <ul style="color: #b8bcc8;">
+            <li>Mã có hiệu lực trong ${OTP_EXPIRE_MINUTES} phút</li>
+            <li>Không chia sẻ mã này cho bất kỳ ai</li>
+            <li>Nếu bạn không thực hiện yêu cầu này, vui lòng bỏ qua email</li>
+          </ul>
+          <hr style="border: none; border-top: 1px solid #333; margin: 30px 0;">
+          <p style="color: #666; font-size: 12px;">Trân trọng,<br>HariShop Team</p>
+        </div>
+      `,
+    })
+    return { emailSent: true, emailErrorMessage: null }
+  } catch (err) {
+    console.warn(`⚠️ OTP email failed for ${user.email}:`, err?.message)
+    return { emailSent: false, emailErrorMessage: err?.message || 'Gửi email thất bại.' }
+  }
+}
+
+const verifyOtp = asyncHandler(async (req, res) => {
+  const { email, otp } = req.body
+
+  if (!email || !otp) {
+    res.status(400)
+    throw new Error('Vui lòng nhập email và mã OTP.')
+  }
+
+  const user = await User.findOne({ email })
+
+  if (!user) {
+    res.status(404)
+    throw new Error('Không tìm thấy tài khoản với email này.')
+  }
+
+  if (user.isVerified) {
+    res.status(400)
+    throw new Error('Tài khoản đã được xác thực trước đó.')
+  }
+
+  if (!user.otpCode || !user.otpExpire || user.otpExpire < Date.now()) {
+    res.status(400)
+    throw new Error('Mã OTP đã hết hạn. Vui lòng bấm gửi lại mã.')
+  }
+
+  if (hashOtp(otp.toString().trim()) !== user.otpCode) {
+    res.status(400)
+    throw new Error('Mã OTP không chính xác.')
+  }
+
+  user.isVerified = true
+  user.otpCode = undefined
+  user.otpExpire = undefined
+  user.otpLastSentAt = undefined
+  await user.save()
+
+  res.json({
+    _id: user._id,
+    name: user.name,
+    email: user.email,
+    isAdmin: user.isAdmin,
+    addresses: user.addresses,
+    token: generateToken(user._id),
+  })
+})
+
+const resendOtp = asyncHandler(async (req, res) => {
+  const { email } = req.body
+
+  if (!email) {
+    res.status(400)
+    throw new Error('Vui lòng nhập email.')
+  }
+
+  const user = await User.findOne({ email })
+
+  if (!user) {
+    res.status(404)
+    throw new Error('Không tìm thấy tài khoản với email này.')
+  }
+
+  if (user.isVerified) {
+    res.status(400)
+    throw new Error('Tài khoản đã được xác thực.')
+  }
+
+  if (user.otpLastSentAt) {
+    const secondsSinceLastSend = (Date.now() - new Date(user.otpLastSentAt).getTime()) / 1000
+    if (secondsSinceLastSend < OTP_RESEND_COOLDOWN_SECONDS) {
+      res.status(429)
+      throw new Error(
+        `Vui lòng đợi ${Math.ceil(OTP_RESEND_COOLDOWN_SECONDS - secondsSinceLastSend)} giây trước khi gửi lại mã.`
+      )
+    }
+  }
+
+  const otp = generateOtp()
+  user.otpCode = hashOtp(otp)
+  user.otpExpire = Date.now() + OTP_EXPIRE_MINUTES * 60 * 1000
+  user.otpLastSentAt = Date.now()
+  await user.save()
+
+  const { emailSent, emailErrorMessage } = await sendOtpEmail(user, otp)
+
+  res.json({
+    success: true,
+    emailSent,
+    cooldownSeconds: OTP_RESEND_COOLDOWN_SECONDS,
+    message: emailSent
+      ? 'Mã OTP mới đã được gửi vào email của bạn.'
+      : `Không gửi được email. ${emailErrorMessage || ''}`.trim(),
+  })
 })
 
 const registerUser = asyncHandler(async (req, res) => {
@@ -63,22 +215,39 @@ const registerUser = asyncHandler(async (req, res) => {
     addresses = [addressObj]
   }
 
+  const otp = generateOtp()
+
   let user
   try {
-    user = await User.create({ name, email, password, addresses })
+    user = await User.create({
+      name,
+      email,
+      password,
+      addresses,
+      isVerified: false,
+      otpCode: hashOtp(otp),
+      otpExpire: Date.now() + OTP_EXPIRE_MINUTES * 60 * 1000,
+      otpLastSentAt: Date.now(),
+    })
   } catch (e) {
     res.status(400)
     throw e
   }
 
   if (user) {
+    const { emailSent, emailErrorMessage } = await sendOtpEmail(user, otp)
+
     res.status(201).json({
       _id: user._id,
       name: user.name,
       email: user.email,
-      isAdmin: user.isAdmin,
-      addresses: user.addresses,
-      token: generateToken(user._id),
+      isVerified: user.isVerified,
+      needOtp: true,
+      emailSent,
+      cooldownSeconds: OTP_RESEND_COOLDOWN_SECONDS,
+      message: emailSent
+        ? 'Đăng ký thành công. Vui lòng kiểm tra email để lấy mã OTP.'
+        : `Đăng ký thành công nhưng chưa gửi được email OTP. ${emailErrorMessage || ''}`.trim(),
     })
   } else {
     res.status(400)
@@ -386,6 +555,8 @@ const getUserAddresses = asyncHandler(async (req, res) => {
 export {
   authUser,
   registerUser,
+  verifyOtp,
+  resendOtp,
   forgotPassword,
   resetPassword,
   getUserProfile,

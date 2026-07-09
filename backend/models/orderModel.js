@@ -90,6 +90,34 @@ const orderSchema = mongoose.Schema(
     ghnTrackingUrl: { type: String, default: '' },
 
     transferContent: { type: String, default: '' },
+
+    // ── MỚI (A3): trạng thái đơn hàng chi tiết theo timeline ────────
+    status: {
+      type: String,
+      enum: [
+        'pending',           // 1. Đơn hàng đã được đặt thành công
+        'confirmed',         // 2. Shop đã xác nhận và chuẩn bị hàng
+        'packing',           // 3. Đang đóng gói hàng hóa
+        'waiting_pickup',    // 4. Chờ đơn vị vận chuyển lấy hàng
+        'picked_up',         // 5. GHN đã lấy hàng thành công
+        'in_transit',        // 6. Đang vận chuyển đến kho trung gian
+        'out_for_delivery',  // 7. Shipper đang giao hàng đến bạn
+        'delivered',         // 8. Giao hàng thành công
+        'delivery_failed',   // 9. Giao hàng không thành công
+        'returning',         // 10. Hàng đang hoàn về kho
+        'returned',          // 11. Hàng đã hoàn về kho
+        'cancelled',         // 12. Đơn hàng đã bị hủy
+      ],
+      default: 'pending',
+    },
+    statusHistory: [
+      {
+        status:    { type: String, required: true },
+        note:      { type: String, default: '' },
+        changedAt: { type: Date, default: Date.now },
+        changedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+      },
+    ],
   },
   { timestamps: true }
 )

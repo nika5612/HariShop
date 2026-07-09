@@ -34,6 +34,9 @@ import {
   ORDER_ADMIN_DELETE_REQUEST,
   ORDER_ADMIN_DELETE_SUCCESS,
   ORDER_ADMIN_DELETE_FAIL,
+  ORDER_UPDATE_STATUS_REQUEST,
+  ORDER_UPDATE_STATUS_SUCCESS,
+  ORDER_UPDATE_STATUS_FAIL,
 } from '../constants/orderConstants'
 
 
@@ -160,6 +163,35 @@ export const deliverOrder = (order) => async (dispatch, getState) => {
     const message = getErrorMessage(error)
     if (message === 'Not authorized, token failed') dispatch(logout())
     dispatch({ type: ORDER_DELIVER_FAIL, payload: message })
+  }
+}
+
+// ✅ A3: Admin cập nhật trạng thái đơn hàng chi tiết (timeline)
+export const updateOrderStatus = (orderId, status, note = '') => async (dispatch, getState) => {
+  try {
+    dispatch({ type: ORDER_UPDATE_STATUS_REQUEST })
+
+    const { userLogin: { userInfo } } = getState()
+
+    const config = {
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${userInfo.token}`,
+      },
+    }
+
+    const { data } = await axios.put(
+      `/api/orders/${orderId}/status`,
+      { status, note },
+      config
+    )
+
+    dispatch({ type: ORDER_UPDATE_STATUS_SUCCESS, payload: data })
+    dispatch({ type: ORDER_DETAILS_SUCCESS, payload: data })
+  } catch (error) {
+    const message = getErrorMessage(error)
+    if (message === 'Not authorized, token failed') dispatch(logout())
+    dispatch({ type: ORDER_UPDATE_STATUS_FAIL, payload: message })
   }
 }
 

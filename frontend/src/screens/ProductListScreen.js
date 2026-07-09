@@ -113,6 +113,7 @@ const ProductListScreen = ({ history, match }) => {
                 <th>Danh Mục</th>
                 <th>Hãng</th>
                 <th>Màu sắc</th>
+                <th>Thông số</th>
                 <th></th>
 
 
@@ -131,6 +132,27 @@ const ProductListScreen = ({ history, match }) => {
                     {Array.isArray(product.colors) && product.colors.length > 0
                       ? product.colors.map((c) => c.name).join(', ')
                       : 'N/A'}
+                  </td>
+
+                  <td style={{ fontSize: '12px', whiteSpace: 'nowrap' }}>
+                    {(() => {
+                      const s = product.specs
+                      const hasSpecs = s && Object.values(s).some((v) => v)
+                      if (!hasSpecs) {
+                        return <span className='text-muted'>Chưa nhập</span>
+                      }
+                      const parts = []
+                      if (s.ram) parts.push(`RAM ${s.ram}`)
+                      if (s.storage) parts.push(s.storage)
+                      if (s.battery) parts.push(`${s.battery}mAh`)
+                      return parts.length > 0 ? (
+                        parts.join(' • ')
+                      ) : (
+                        <span className='text-success'>
+                          <i className='fas fa-check-circle'></i> Đã có
+                        </span>
+                      )
+                    })()}
                   </td>
 
                   <td>

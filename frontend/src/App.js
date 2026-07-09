@@ -10,6 +10,7 @@ import ProductScreen from './screens/ProductScreen'
 import CartScreen from './screens/CartScreen'
 import LoginScreen from './screens/LoginScreen'
 import RegisterScreen from './screens/RegisterScreen'
+import VerifyOtpScreen from './screens/VerifyOtpScreen'
 import ForgotPasswordScreen from './screens/ForgotPasswordScreen'
 import ResetPasswordScreen from './screens/ResetPasswordScreen'
 import TrackingScreen from './screens/TrackingScreen'
@@ -75,6 +76,7 @@ const App = () => {
           {/* ===== AUTH / USER ===== */}
           <Route path='/login' component={LoginScreen} />
           <Route path='/register' component={RegisterScreen} />
+          <Route path='/verify-otp' component={VerifyOtpScreen} />
           <Route path='/forgotpassword' component={ForgotPasswordScreen} />
           <Route path='/resetpassword/:token' component={ResetPasswordScreen} />
           <Route path='/profile' component={ProfileScreen} />

@@ -1,0 +1,56 @@
+@startuml
+title Sequence Diagram - Create Order + Update Voucher + Deduct Stock + Create GHN
+
+actor Customer
+participant Frontend as FE
+participant "OrderRoutes" as OR
+participant "AuthMiddleware (protect)" as Auth
+participant "OrderController" as OC
+participant "Order (Mongoose)" as Order
+participant "Voucher (Mongoose)" as Voucher
+participant "Product (Mongoose)" as Product
+participant "Settings (Mongoose)" as Settings
+participant "GHN Provider" as GHN
+
+Customer -> FE : Enter checkout data (cartItems, shippingAddress, paymentMethod, voucherCode...)
+FE -> OR : POST /api/orders (Authorization: Bearer token)
+OR -> Auth : protect(req)
+Auth -> OR : req.user
+OR -> OC : addOrderItems(req,res)
+
+OC -> OC : Validate request body & compute totalWeight
+OC -> Order : new Order(orderItems, shippingAddress, payment...) 
+OC -> Order : save()
+Order --> OC : createdOrder
+
+alt voucherCode provided
+  OC -> Voucher : findOne({code})
+  OC -> Voucher : check isActive, expiresAt, usageLimit, minOrder
+  OC -> Voucher : findOneAndUpdate({usedCount<$limit}, {$inc:{usedCount:1}})
+end
+
+OC -> OC : deductStockByColor(orderItems)
+loop for each item in orderItems
+  OC -> Product : findById(item.product)
+  alt product has colors & item.color specified
+    OC -> Product : decrease Product.colors[countInStock] by qty
+  else no colors
+    OC -> Product : decrease Product.countInStock by qty
+  end
+  OC -> Product : save()
+end
+
+alt shippingProvider === 'ghn' OR USE_SANDBOX
+  OC -> Settings : findOne({key:'global'})
+  Settings --> OC : warehouseAddress (ghnDistrictId/ghnWardCode...)
+  OC -> GHN : createGHNOrder(payload from Order + warehouseAddress)
+  GHN --> OC : order_code/sort_code
+  OC -> Order : save() ghnOrderCode/ghnTrackingUrl
+end
+
+OC --> OR : 201 createdOrder
+OR --> FE : JSON Order
+FE --> Customer : Show order confirmation
+
+@enduml
+

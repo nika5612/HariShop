@@ -29,6 +29,8 @@ import {
   userForgotPasswordReducer,
   userResetPasswordReducer,
   userProfileReducer,
+  userVerifyOtpReducer,
+  userResendOtpReducer,
 } from './reducers/userReducers'
 
 // ORDER
@@ -46,6 +48,7 @@ import {
   orderAdminRevenueReducer,
   orderAdminBrandReducer,
   orderAdminDeleteReducer,
+  orderUpdateStatusReducer,
 } from './reducers/orderReducers'
 
 // VOUCHER (ADMIN)
@@ -87,6 +90,7 @@ const reducer = combineReducers({
   orderDetails: orderDetailsReducer,
   orderPay: orderPayReducer,
   orderDeliver: orderDeliverReducer,
+  orderUpdateStatus: orderUpdateStatusReducer,
   orderListMy: orderListMyReducer,
   orderList: orderListReducer,
   orderCancelRequest: orderCancelRequestReducer,
@@ -113,6 +117,8 @@ const reducer = combineReducers({
   userForgotPassword: userForgotPasswordReducer,
   userResetPassword: userResetPasswordReducer,
   userProfile: userProfileReducer,
+  userVerifyOtp: userVerifyOtpReducer,
+  userResendOtp: userResendOtpReducer,
 
   shippingQuotes: shippingQuotesReducer,
   shippingTrack: shippingTrackReducer,

@@ -2,7 +2,17 @@ import React from 'react'
 import { Link } from 'react-router-dom'
 import Rating from './Rating'
 
+const formatVnd = (value) => {
+  const num = Number(value)
+  if (Number.isNaN(num)) return value
+  return num.toLocaleString('vi-VN')
+}
+
 const Product = ({ product }) => {
+  if (!product) return null
+
+  const { _id, name, image, price, rating, numReviews, countInStock } = product
+
   return (
     <div style={{
       background: '#1a1a2e',
@@ -17,23 +27,25 @@ const Product = ({ product }) => {
     }} className="mb-4 h-100 fade-in-up">
 
       {/* ── Ảnh ── */}
-      <Link to={`/product/${product._id}`} style={{ textDecoration: 'none', display: 'block' }}>
+      <Link to={`/product/${_id || ''}`} style={{ textDecoration: 'none', display: 'block' }}>
         <div style={{
           position: 'relative',
           overflow: 'hidden',
           height: '220px',
           background: '#0f0f23',
         }}>
-          <img
-            src={product.image}
-            alt={product.name}
-            style={{
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover',
-              transition: 'transform 0.4s ease',
-            }}
-          />
+          {image ? (
+            <img
+              src={image}
+              alt={name || 'Product'}
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                transition: 'transform 0.4s ease',
+              }}
+            />
+          ) : null}
           {/* Hot badge */}
           <div style={{ position: 'absolute', top: '12px', right: '12px', zIndex: 2 }}>
             <span style={{
@@ -59,7 +71,7 @@ const Product = ({ product }) => {
         flex: 1,
       }}>
         {/* Tên */}
-        <Link to={`/product/${product._id}`} style={{ textDecoration: 'none', marginBottom: '8px' }}>
+        <Link to={`/product/${_id || ''}`} style={{ textDecoration: 'none', marginBottom: '8px' }}>
           <h5 style={{
             color: '#ffffff',
             fontWeight: '700',
@@ -67,31 +79,40 @@ const Product = ({ product }) => {
             margin: 0,
             lineHeight: '1.4',
           }}>
-            {product.name}
+            {name}
           </h5>
         </Link>
 
         {/* Rating */}
         <div style={{ marginBottom: '10px' }}>
-          <Rating value={product.rating} text={`${product.numReviews} đánh giá`} />
+          <Rating value={rating || 0} text={`${numReviews || 0} đánh giá`} />
         </div>
 
         {/* Giá */}
-        <h4 style={{
-          color: '#33FFCC',
-          margin: '0 0 4px 0',
-          fontWeight: '800',
-          fontSize: '1.25rem',
-        }}>
-          {product.price.toLocaleString('vi-VN')}đ
-        </h4>
+        {typeof price !== 'undefined' ? (
+          <h4 style={{
+            color: '#33FFCC',
+            margin: '0 0 4px 0',
+            fontWeight: '800',
+            fontSize: '1.25rem',
+          }}>
+            {formatVnd(price)}đ
+          </h4>
+        ) : null}
+
+        {/* Tồn kho */}
+        {typeof countInStock !== 'undefined' ? (
+          <div style={{ color: '#b8bcc8', fontSize: '12px', marginTop: '2px' }}>
+            {countInStock > 0 ? `Còn ${countInStock} sản phẩm` : 'Tạm hết hàng'}
+          </div>
+        ) : null}
 
         {/* Spacer đẩy nút xuống đáy */}
         <div style={{ flex: 1 }} />
 
         {/* ── Nút Xem Chi Tiết — ở dưới cùng, full width ── */}
         <Link
-          to={`/product/${product._id}`}
+          to={`/product/${_id || ''}`}
           style={{
             display: 'block',
             marginTop: '14px',

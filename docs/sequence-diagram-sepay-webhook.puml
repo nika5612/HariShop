@@ -1,0 +1,32 @@
+@startuml
+title Sequence Diagram - SePay Webhook Payment Update
+
+participant "SePay" as Sepay
+participant "SePayWebhookRouter" as WH
+participant "Order (Mongoose)" as Order
+
+SePay -> WH : POST /api/payments/sepay-webhook (webhook payload + signature)
+WH -> WH : verifySepaySignature(using SEPAY_SECRET)
+
+alt signature invalid
+  WH --> SePay : 401 Invalid sePay signature
+else signature valid
+  WH -> Order : findById(orderIdFromPayload)
+  alt order not found
+    WH --> SePay : 404 Order not found for reference
+  else
+    alt payment status not success/paid
+      WH -> Order : update paymentResult (status not successful)
+      WH -> Order : save()
+      WH --> SePay : 200 ok (order left unpaid)
+    else success/paid
+      WH -> Order : set isPaid=true, paidAt=Date.now()
+      WH -> Order : set paymentResult (transactionId, status, update_time...)
+      WH -> Order : save()
+      WH --> SePay : 200 ok (Order marked as paid)
+    end
+  end
+end
+
+@enduml
+

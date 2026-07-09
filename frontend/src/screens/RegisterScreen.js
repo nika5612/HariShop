@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { Form, Button, Row, Col } from 'react-bootstrap'
+import { Form, Button, Row, Col, Spinner } from 'react-bootstrap'
 import { useDispatch, useSelector } from 'react-redux'
+import axios from 'axios'
 import Message from '../components/Message'
 import Loader from '../components/Loader'
 import FormContainer from '../components/FormContainer'
@@ -12,16 +13,32 @@ const validateEmail = (email) => {
   return regex.test(email)
 }
 
+const inputStyle = {
+  background: '#0f0f23',
+  border: '1px solid rgba(51,255,204,0.4)',
+  color: '#ffffff',
+  borderRadius: '12px',
+  padding: '14px 16px',
+}
+
+const labelStyle = { color: '#ffffff', fontWeight: '500' }
+
 const RegisterScreen = ({ location, history }) => {
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [email, setEmail] = useState('')
   const [detail, setDetail] = useState('')
-  const [ward, setWard] = useState('')
-  const [province, setProvince] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState('')
+
+  // ===== Dropdown địa chỉ 3 cấp (Tỉnh → Quận → Phường) =====
+  // Tái sử dụng đúng logic/API đang dùng ở AddressBookScreen
+  const [provinces, setProvinces] = useState([])
+  const [combinedWards, setCombinedWards] = useState([])
+  const [loadingWards, setLoadingWards] = useState(false)
+  const [provinceObj, setProvinceObj] = useState(null)
+  const [selectedCombinedWard, setSelectedCombinedWard] = useState(null)
 
   const dispatch = useDispatch()
 
@@ -30,11 +47,83 @@ const RegisterScreen = ({ location, history }) => {
 
   const redirect = location.search ? location.search.split('=')[1] : '/'
 
+  // A2: Sau khi đăng ký, tài khoản cần xác nhận OTP trước khi được đăng nhập
   useEffect(() => {
-    if (userInfo) {
-      history.push(redirect)
+    if (userInfo && userInfo.needOtp) {
+      history.push(`/verify-otp?email=${encodeURIComponent(userInfo.email)}`)
     }
-  }, [history, userInfo, redirect])
+  }, [history, userInfo])
+
+  useEffect(() => {
+    const fetchProvinces = async () => {
+      try {
+        const { data } = await axios.get('/api/shipping/provinces')
+        if (data.success) {
+          setProvinces(data.data)
+        }
+      } catch (err) {
+        console.error('Error fetching provinces:', err)
+      }
+    }
+    fetchProvinces()
+  }, [])
+
+  const handleProvinceChange = async (e) => {
+    const val = e.target.value
+    if (!val) {
+      setProvinceObj(null)
+      setCombinedWards([])
+      setSelectedCombinedWard(null)
+      return
+    }
+
+    const p = JSON.parse(val)
+    setProvinceObj(p)
+    setCombinedWards([])
+    setSelectedCombinedWard(null)
+    setLoadingWards(true)
+
+    try {
+      const { data: dData } = await axios.get(
+        `/api/shipping/districts?provinceId=${encodeURIComponent(JSON.stringify(p))}`
+      )
+      if (dData.success && dData.data.length > 0) {
+        const dists = dData.data
+        const allWards = []
+        await Promise.all(
+          dists.map(async (d) => {
+            try {
+              const { data: wData } = await axios.get(
+                `/api/shipping/wards?districtId=${encodeURIComponent(JSON.stringify(d))}`
+              )
+              if (wData.success && wData.data.length > 0) {
+                wData.data.forEach((w) => {
+                  allWards.push({
+                    wardObj: w,
+                    districtObj: d,
+                    displayName: `${w.wardName} (${d.districtName})`,
+                  })
+                })
+              }
+            } catch (e) {}
+          })
+        )
+
+        allWards.sort((a, b) => a.displayName.localeCompare(b.displayName))
+        setCombinedWards(allWards)
+      }
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setLoadingWards(false)
+    }
+  }
+
+  const handleCombinedWardChange = (e) => {
+    const val = e.target.value
+    if (!val) return
+    setSelectedCombinedWard(JSON.parse(val))
+  }
 
   const submitHandler = (e) => {
     e.preventDefault()
@@ -58,28 +147,33 @@ const RegisterScreen = ({ location, history }) => {
       return
     }
 
-    // Address validation (no district)
+    // Address validation - bắt buộc chọn đủ 3 cấp + số nhà/tên đường
     const requiredFields = [
-      { name: 'Địa chỉ chi tiết', value: detail.trim() },
-      { name: 'Phường/Xã', value: ward.trim() },
-      { name: 'Tỉnh/Thành phố', value: province.trim() }
+      { name: 'Số nhà, tên đường', value: detail.trim() },
+      { name: 'Tỉnh/Thành phố', value: provinceObj },
+      { name: 'Phường/Xã', value: selectedCombinedWard },
     ]
     for (const field of requiredFields) {
       if (!field.value) {
-        setError(`❌ Vui lòng nhập ${field.name}`)
+        setError(`❌ Vui lòng nhập/chọn đủ: ${field.name}`)
         setTimeout(() => setError(''), 5000)
         return
       }
     }
 
-    // Create structured address (no district)
+    // Tạo address object đầy đủ, đồng bộ với AddressBookScreen
     const addressObj = {
       fullName: name.trim(),
       phone: phone.trim(),
-      province: province.trim(),
-      ward: ward.trim(),
-      detail: detail.trim()
-      // district omitted per request
+      province: provinceObj.provinceName,
+      district: selectedCombinedWard.districtObj.districtName,
+      ward: selectedCombinedWard.wardObj.wardName,
+      detail: detail.trim(),
+      ghnDistrictId: selectedCombinedWard.districtObj.ghnDistrictId,
+      ghnWardCode: selectedCombinedWard.wardObj.ghnWardCode,
+      vtpProvinceId: provinceObj.vtpProvinceId,
+      vtpDistrictId: selectedCombinedWard.districtObj.vtpDistrictId,
+      vtpWardId: selectedCombinedWard.wardObj.vtpWardId,
     }
 
     dispatch(register(name, phone, email, password, addressObj))
@@ -95,23 +189,25 @@ const RegisterScreen = ({ location, history }) => {
       {loading && <Loader />}
 
       {error && (
-        <div style={{
-          background: 'rgba(220,53,69,0.15)',
-          border: '1px solid #dc3545',
-          color: '#ff6b6b',
-          borderRadius: '12px',
-          padding: '12px 16px',
-          marginBottom: '1.5rem',
-          fontSize: '15px',
-          textAlign: 'center'
-        }}>
+        <div
+          style={{
+            background: 'rgba(220,53,69,0.15)',
+            border: '1px solid #dc3545',
+            color: '#ff6b6b',
+            borderRadius: '12px',
+            padding: '12px 16px',
+            marginBottom: '1.5rem',
+            fontSize: '15px',
+            textAlign: 'center',
+          }}
+        >
           {error}
         </div>
       )}
 
       <Form onSubmit={submitHandler} autoComplete='off'>
         <Form.Group controlId='name' style={{ marginBottom: '1.5rem' }}>
-          <Form.Label style={{ color: '#ffffff', fontWeight: '500' }}>Họ và tên *</Form.Label>
+          <Form.Label style={labelStyle}>Họ và tên *</Form.Label>
           <Form.Control
             type='text'
             placeholder='Nhập họ và tên đầy đủ'
@@ -119,18 +215,12 @@ const RegisterScreen = ({ location, history }) => {
             onChange={(e) => setName(e.target.value)}
             required
             autoComplete='off'
-            style={{
-              background: '#0f0f23',
-              border: '1px solid rgba(51,255,204,0.4)',
-              color: '#ffffff',
-              borderRadius: '12px',
-              padding: '14px 16px'
-            }}
+            style={inputStyle}
           />
         </Form.Group>
 
         <Form.Group controlId='phone' style={{ marginBottom: '1.5rem' }}>
-          <Form.Label style={{ color: '#ffffff', fontWeight: '500' }}>Số điện thoại *</Form.Label>
+          <Form.Label style={labelStyle}>Số điện thoại *</Form.Label>
           <Form.Control
             type='tel'
             placeholder='Nhập số điện thoại'
@@ -139,13 +229,7 @@ const RegisterScreen = ({ location, history }) => {
             required
             maxLength={10}
             autoComplete='off'
-            style={{
-              background: '#0f0f23',
-              border: '1px solid rgba(51,255,204,0.4)',
-              color: '#ffffff',
-              borderRadius: '12px',
-              padding: '14px 16px'
-            }}
+            style={inputStyle}
           />
           <Form.Text className='text-muted' style={{ fontSize: '0.85rem', color: '#b8bcc8 !important' }}>
             Ví dụ: 0123456789 (10 số)
@@ -153,7 +237,7 @@ const RegisterScreen = ({ location, history }) => {
         </Form.Group>
 
         <Form.Group controlId='email' style={{ marginBottom: '1.5rem' }}>
-          <Form.Label style={{ color: '#ffffff', fontWeight: '500' }}>Email *</Form.Label>
+          <Form.Label style={labelStyle}>Email *</Form.Label>
           <Form.Control
             type='email'
             placeholder='Nhập email của bạn (VD: example@gmail.com)'
@@ -161,71 +245,65 @@ const RegisterScreen = ({ location, history }) => {
             onChange={(e) => setEmail(e.target.value)}
             required
             autoComplete='new-email'
-            style={{
-              background: '#0f0f23',
-              border: '1px solid rgba(51,255,204,0.4)',
-              color: '#ffffff',
-              borderRadius: '12px',
-              padding: '14px 16px'
-            }}
+            style={inputStyle}
           />
         </Form.Group>
 
         <Form.Group controlId='detail' style={{ marginBottom: '1.5rem' }}>
-          <Form.Label style={{ color: '#ffffff', fontWeight: '500' }}>Số nhà, tên đường *</Form.Label>
+          <Form.Label style={labelStyle}>Số nhà, tên đường *</Form.Label>
           <Form.Control
             as='textarea'
             rows={2}
             placeholder='Số nhà, tên đường, địa danh nổi bật...'
             value={detail}
             onChange={(e) => setDetail(e.target.value)}
-            style={{
-              background: '#0f0f23',
-              border: '1px solid rgba(51,255,204,0.4)',
-              color: '#ffffff',
-              borderRadius: '12px',
-              padding: '14px 16px',
-              resize: 'vertical'
-            }}
-          />
-        </Form.Group>
-
-        <Form.Group controlId='ward' style={{ marginBottom: '1.5rem' }}>
-          <Form.Label style={{ color: '#ffffff', fontWeight: '500' }}>Phường/Xã *</Form.Label>
-          <Form.Control
-            type='text'
-            placeholder='VD: Phường Bến Nghé, Xã An Phú...'
-            value={ward}
-            onChange={(e) => setWard(e.target.value)}
-            style={{
-              background: '#0f0f23',
-              border: '1px solid rgba(51,255,204,0.4)',
-              color: '#ffffff',
-              borderRadius: '12px',
-              padding: '14px 16px'
-            }}
+            style={{ ...inputStyle, resize: 'vertical' }}
           />
         </Form.Group>
 
         <Form.Group controlId='province' style={{ marginBottom: '1.5rem' }}>
-          <Form.Label style={{ color: '#ffffff', fontWeight: '500' }}>Tỉnh/Thành phố *</Form.Label>
+          <Form.Label style={labelStyle}>Tỉnh/Thành phố *</Form.Label>
           <Form.Control
-            type='text'
-            placeholder='VD: TP. Hồ Chí Minh, Hà Nội...'
-            value={province}
-            onChange={(e) => setProvince(e.target.value)}
-            style={{
-              background: '#0f0f23',
-              border: '1px solid rgba(51,255,204,0.4)',
-              color: '#ffffff',
-              borderRadius: '12px',
-              padding: '14px 16px'
-            }}
-          />
+            as='select'
+            style={inputStyle}
+            value={provinceObj ? JSON.stringify(provinceObj) : ''}
+            onChange={handleProvinceChange}
+          >
+            <option value=''>Chọn Tỉnh/Thành</option>
+            {provinces.map((p, i) => (
+              <option key={i} value={JSON.stringify(p)}>
+                {p.provinceName}
+              </option>
+            ))}
+          </Form.Control>
+        </Form.Group>
+
+        <Form.Group controlId='ward' style={{ marginBottom: '1.5rem' }}>
+          <Form.Label style={labelStyle}>
+            Phường/Xã *
+            {loadingWards && <Spinner animation='border' size='sm' className='ms-2' style={{ color: '#33FFCC' }} />}
+          </Form.Label>
+          <Form.Control
+            as='select'
+            style={inputStyle}
+            value={selectedCombinedWard ? JSON.stringify(selectedCombinedWard) : ''}
+            onChange={handleCombinedWardChange}
+            disabled={!provinceObj || loadingWards}
+          >
+            <option value=''>{loadingWards ? 'Đang tải khu vực...' : 'Chọn Phường/Xã'}</option>
+            {combinedWards.map((cw, i) => (
+              <option key={i} value={JSON.stringify(cw)}>
+                {cw.displayName}
+              </option>
+            ))}
+          </Form.Control>
+          <Form.Text className='text-muted' style={{ fontSize: '0.85rem', color: '#b8bcc8 !important' }}>
+            Chọn Tỉnh/Thành trước để hiện danh sách Phường/Xã (đã gộp Quận tương ứng)
+          </Form.Text>
         </Form.Group>
 
         <Form.Group controlId='password' style={{ marginBottom: '1.5rem' }}>
-          <Form.Label style={{ color: '#ffffff', fontWeight: '500' }}>Mật khẩu *</Form.Label>
+          <Form.Label style={labelStyle}>Mật khẩu *</Form.Label>
           <Form.Control
             type='password'
             placeholder='Tạo mật khẩu mạnh (ít nhất 6 ký tự)'
@@ -234,18 +312,12 @@ const RegisterScreen = ({ location, history }) => {
             required
             minLength={6}
             autoComplete='new-password'
-            style={{
-              background: '#0f0f23',
-              border: '1px solid rgba(51,255,204,0.4)',
-              color: '#ffffff',
-              borderRadius: '12px',
-              padding: '14px 16px'
-            }}
+            style={inputStyle}
           />
         </Form.Group>
 
         <Form.Group controlId='confirmPassword' style={{ marginBottom: '1.5rem' }}>
-          <Form.Label style={{ color: '#ffffff', fontWeight: '500' }}>Nhập lại mật khẩu *</Form.Label>
+          <Form.Label style={labelStyle}>Nhập lại mật khẩu *</Form.Label>
           <Form.Control
             type='password'
             placeholder='Xác nhận mật khẩu'
@@ -253,18 +325,12 @@ const RegisterScreen = ({ location, history }) => {
             onChange={(e) => setConfirmPassword(e.target.value)}
             required
             autoComplete='new-password'
-            style={{
-              background: '#0f0f23',
-              border: '1px solid rgba(51,255,204,0.4)',
-              color: '#ffffff',
-              borderRadius: '12px',
-              padding: '14px 16px'
-            }}
+            style={inputStyle}
           />
         </Form.Group>
 
-        <Button 
-          type='submit' 
+        <Button
+          type='submit'
           disabled={!!error || loading}
           style={{
             width: '100%',
@@ -275,10 +341,10 @@ const RegisterScreen = ({ location, history }) => {
             padding: '16px',
             borderRadius: '12px',
             fontSize: '16px',
-            boxShadow: (error || loading) ? 'none' : '0 6px 20px rgba(51,255,204,0.4)',
+            boxShadow: error || loading ? 'none' : '0 6px 20px rgba(51,255,204,0.4)',
             marginTop: '1rem',
-            opacity: (error || loading) ? 0.7 : 1,
-            cursor: (error || loading) ? 'not-allowed' : 'pointer'
+            opacity: error || loading ? 0.7 : 1,
+            cursor: error || loading ? 'not-allowed' : 'pointer',
           }}
         >
           <i className='fas fa-user-plus me-2'></i>
@@ -289,11 +355,10 @@ const RegisterScreen = ({ location, history }) => {
       <Row style={{ marginTop: '2rem' }}>
         <Col style={{ textAlign: 'center', color: '#b8bcc8' }}>
           Đã Có Tài Khoản?{' '}
-          <Link to={redirect ? `/login?redirect=${redirect}` : '/login'} style={{ 
-            color: '#33FFCC', 
-            fontWeight: '600',
-            textDecoration: 'none'
-          }}>
+          <Link
+            to={redirect ? `/login?redirect=${redirect}` : '/login'}
+            style={{ color: '#33FFCC', fontWeight: '600', textDecoration: 'none' }}
+          >
             Đăng Nhập Ngay
           </Link>
         </Col>
@@ -303,4 +368,3 @@ const RegisterScreen = ({ location, history }) => {
 }
 
 export default RegisterScreen
-

@@ -24,6 +24,12 @@ import {
   USER_UPDATE_FAIL,
   USER_UPDATE_SUCCESS,
   USER_UPDATE_REQUEST,
+  USER_VERIFY_OTP_REQUEST,
+  USER_VERIFY_OTP_SUCCESS,
+  USER_VERIFY_OTP_FAIL,
+  USER_RESEND_OTP_REQUEST,
+  USER_RESEND_OTP_SUCCESS,
+  USER_RESEND_OTP_FAIL,
 } from '../constants/userConstants'
 import { ORDER_LIST_MY_RESET } from '../constants/orderConstants'
 
@@ -83,6 +89,7 @@ export const logout = () => (dispatch) => {
 }
 
 // REGISTER - Updated for structured address
+// A2: Không tự đăng nhập ngay nữa, tài khoản cần xác nhận OTP trước.
 export const register = (name, phone, email, password, addressObj) => async (dispatch) => {
   try {
     dispatch({ type: USER_REGISTER_REQUEST })
@@ -101,6 +108,30 @@ export const register = (name, phone, email, password, addressObj) => async (dis
       type: USER_REGISTER_SUCCESS,
       payload: data,
     })
+  } catch (error) {
+    const message =
+      error.response && error.response.data && error.response.data.message
+        ? error.response.data.message
+        : error.message || 'Registration failed'
+    dispatch({
+      type: USER_REGISTER_FAIL,
+      payload: message,
+    })
+  }
+}
+
+// VERIFY OTP - xác nhận email sau khi đăng ký, tự động đăng nhập nếu thành công
+export const verifyOtp = (email, otp) => async (dispatch) => {
+  try {
+    dispatch({ type: USER_VERIFY_OTP_REQUEST })
+
+    const config = {
+      headers: { 'Content-Type': 'application/json' },
+    }
+
+    const { data } = await axios.post('/api/users/verify-otp', { email, otp }, config)
+
+    dispatch({ type: USER_VERIFY_OTP_SUCCESS, payload: data })
 
     dispatch({
       type: USER_LOGIN_SUCCESS,
@@ -112,9 +143,33 @@ export const register = (name, phone, email, password, addressObj) => async (dis
     const message =
       error.response && error.response.data && error.response.data.message
         ? error.response.data.message
-        : error.message || 'Registration failed'
+        : error.message || 'Xác nhận OTP thất bại'
     dispatch({
-      type: USER_REGISTER_FAIL,
+      type: USER_VERIFY_OTP_FAIL,
+      payload: message,
+    })
+  }
+}
+
+// RESEND OTP - gửi lại mã OTP (cooldown xử lý ở backend)
+export const resendOtp = (email) => async (dispatch) => {
+  try {
+    dispatch({ type: USER_RESEND_OTP_REQUEST })
+
+    const config = {
+      headers: { 'Content-Type': 'application/json' },
+    }
+
+    const { data } = await axios.post('/api/users/resend-otp', { email }, config)
+
+    dispatch({ type: USER_RESEND_OTP_SUCCESS, payload: data })
+  } catch (error) {
+    const message =
+      error.response && error.response.data && error.response.data.message
+        ? error.response.data.message
+        : error.message || 'Gửi lại OTP thất bại'
+    dispatch({
+      type: USER_RESEND_OTP_FAIL,
       payload: message,
     })
   }
@@ -364,4 +419,3 @@ export const resetPassword = (token, password) => async (dispatch) => {
     })
   }
 }
-

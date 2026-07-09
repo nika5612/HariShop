@@ -64,6 +64,14 @@ const userSchema = mongoose.Schema(
       default: false,
     },
 
+    // ===== A2: Xác nhận email bằng OTP =====
+    isVerified: {
+      type: Boolean,
+      default: false,
+    },
+    otpCode: { type: String },
+    otpExpire: { type: Date },
+    otpLastSentAt: { type: Date },
 
     addresses: [addressSchema],
     resetPasswordToken: { type: String },

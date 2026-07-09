@@ -34,6 +34,16 @@ const ProductEditScreen = ({ match, history }) => {
   const [colorStock, setColorStock] = useState(0)
   const [colorError, setColorError] = useState('')
 
+  // ── SỬA BUG: tồn kho thủ công cho sản phẩm KHÔNG dùng biến thể màu ──
+  const [manualStock, setManualStock] = useState(0)
+
+  // ── MỚI: state thông số kỹ thuật (specs) - tất cả không bắt buộc ──
+  const [specs, setSpecs] = useState({
+    ram: '', storage: '', battery: '', screenSize: '', screenType: '',
+    camera: '', chip: '', os: '', sim: '', connectivity: '',
+  })
+  const updateSpec = (field, value) => setSpecs((s) => ({ ...s, [field]: value }))
+
   const dispatch = useDispatch()
 
   const productDetails = useSelector((state) => state.productDetails)
@@ -61,6 +71,8 @@ const ProductEditScreen = ({ match, history }) => {
         setCategory(product.category)
         setWeight(product.weight || 0)
         setDescription(product.description)
+        // ── SỬA BUG: load tồn kho thủ công ──────────────────────
+        setManualStock(product.countInStock || 0)
         // ── MỚI: load màu từ sản phẩm hiện tại ──────────────────
         if (product.colors && product.colors.length > 0) {
           setColors(product.colors.map((c) => ({
@@ -68,6 +80,21 @@ const ProductEditScreen = ({ match, history }) => {
             hexCode:      c.hexCode || '#888888',
             countInStock: c.countInStock,
           })))
+        }
+        // ── MỚI: load thông số kỹ thuật từ sản phẩm hiện tại ────
+        if (product.specs) {
+          setSpecs({
+            ram:          product.specs.ram          || '',
+            storage:      product.specs.storage      || '',
+            battery:      product.specs.battery       || '',
+            screenSize:   product.specs.screenSize   || '',
+            screenType:   product.specs.screenType   || '',
+            camera:       product.specs.camera       || '',
+            chip:         product.specs.chip         || '',
+            os:           product.specs.os           || '',
+            sim:          product.specs.sim          || '',
+            connectivity: product.specs.connectivity || '',
+          })
         }
       }
     }
@@ -128,10 +155,8 @@ const ProductEditScreen = ({ match, history }) => {
 
   const submitHandler = (e) => {
     e.preventDefault()
-    if (colors.length === 0) {
-      setColorError('Vui lòng thêm ít nhất một màu sắc')
-      return
-    }
+    // ── SỬA BUG: KHÔNG còn bắt buộc phải có màu — sản phẩm không
+    // dùng biến thể màu sẽ dùng ô "Tồn kho thủ công" (manualStock) ──
     dispatch(
       updateProduct({
         _id:         productId,
@@ -143,7 +168,9 @@ const ProductEditScreen = ({ match, history }) => {
         description,
         weight,
         colors,
-        countInStock: totalStock, // tự tính, backend cũng sẽ tính lại
+        specs,
+        // Có màu → tổng theo màu. Không có màu → dùng tồn kho nhập tay
+        countInStock: colors.length > 0 ? totalStock : Number(manualStock) || 0,
       })
     )
   }
@@ -248,6 +275,24 @@ const ProductEditScreen = ({ match, history }) => {
                 style={inputStyle}
               />
             </Form.Group>
+
+            {/* ── SỬA BUG: Tồn kho thủ công (chỉ hiện khi CHƯA có màu) ── */}
+            {colors.length === 0 && (
+              <Form.Group controlId='manualStock'>
+                <Form.Label>Tồn kho (sản phẩm không dùng biến thể màu)</Form.Label>
+                <Form.Control
+                  type='number'
+                  min={0}
+                  placeholder='Nhập số lượng tồn kho'
+                  value={manualStock}
+                  onChange={(e) => setManualStock(e.target.value)}
+                  style={inputStyle}
+                />
+                <Form.Text style={{ color: '#aaa', fontSize: 12 }}>
+                  Nếu bạn thêm màu sắc bên dưới, tồn kho sẽ tự tính theo tổng số lượng từng màu thay vì ô này.
+                </Form.Text>
+              </Form.Group>
+            )}
 
             {/* ── MỚI: Màu sắc & Tồn kho ── */}
             <Form.Group controlId='colors'>
@@ -381,7 +426,72 @@ const ProductEditScreen = ({ match, history }) => {
               )}
             </Form.Group>
 
-            <Button type='submit' variant='primary'>
+            {/* ── MỚI: Thông số kỹ thuật ── */}
+            <Form.Group controlId='specs' style={{ marginTop: 20 }}>
+              <Form.Label>Thông số kỹ thuật <span style={{ color: '#aaa', fontWeight: 'normal', fontSize: 12 }}>(không bắt buộc)</span></Form.Label>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: 12,
+                background: '#0f0f23',
+                border: '1px solid rgba(51,255,204,0.2)',
+                borderRadius: 8,
+                padding: 14,
+              }}>
+                <div>
+                  <div style={{ fontSize: 11, color: '#aaa', marginBottom: 3 }}>RAM</div>
+                  <Form.Control type='text' placeholder='VD: 12GB' value={specs.ram}
+                    onChange={(e) => updateSpec('ram', e.target.value)} style={{ ...inputStyle, fontSize: 13 }} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: '#aaa', marginBottom: 3 }}>Bộ nhớ</div>
+                  <Form.Control type='text' placeholder='VD: 1TB' value={specs.storage}
+                    onChange={(e) => updateSpec('storage', e.target.value)} style={{ ...inputStyle, fontSize: 13 }} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: '#aaa', marginBottom: 3 }}>Pin (mAh)</div>
+                  <Form.Control type='number' min={0} placeholder='VD: 4685' value={specs.battery}
+                    onChange={(e) => updateSpec('battery', e.target.value)} style={{ ...inputStyle, fontSize: 13 }} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: '#aaa', marginBottom: 3 }}>Màn hình</div>
+                  <Form.Control type='text' placeholder='VD: 6.9 inch' value={specs.screenSize}
+                    onChange={(e) => updateSpec('screenSize', e.target.value)} style={{ ...inputStyle, fontSize: 13 }} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: '#aaa', marginBottom: 3 }}>Loại màn</div>
+                  <Form.Control type='text' placeholder='VD: OLED 120Hz' value={specs.screenType}
+                    onChange={(e) => updateSpec('screenType', e.target.value)} style={{ ...inputStyle, fontSize: 13 }} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: '#aaa', marginBottom: 3 }}>Camera</div>
+                  <Form.Control type='text' placeholder='VD: 48MP + 12MP' value={specs.camera}
+                    onChange={(e) => updateSpec('camera', e.target.value)} style={{ ...inputStyle, fontSize: 13 }} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: '#aaa', marginBottom: 3 }}>Chip</div>
+                  <Form.Control type='text' placeholder='VD: A19 Pro' value={specs.chip}
+                    onChange={(e) => updateSpec('chip', e.target.value)} style={{ ...inputStyle, fontSize: 13 }} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: '#aaa', marginBottom: 3 }}>Hệ điều hành</div>
+                  <Form.Control type='text' placeholder='VD: iOS 19' value={specs.os}
+                    onChange={(e) => updateSpec('os', e.target.value)} style={{ ...inputStyle, fontSize: 13 }} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: '#aaa', marginBottom: 3 }}>SIM</div>
+                  <Form.Control type='text' placeholder='VD: 1 SIM + eSIM' value={specs.sim}
+                    onChange={(e) => updateSpec('sim', e.target.value)} style={{ ...inputStyle, fontSize: 13 }} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: '#aaa', marginBottom: 3 }}>Kết nối</div>
+                  <Form.Control type='text' placeholder='VD: 5G, WiFi 7' value={specs.connectivity}
+                    onChange={(e) => updateSpec('connectivity', e.target.value)} style={{ ...inputStyle, fontSize: 13 }} />
+                </div>
+              </div>
+            </Form.Group>
+
+            <Button type='submit' variant='primary' style={{ marginTop: 20 }}>
               Cập Nhật
             </Button>
 

@@ -47,6 +47,10 @@ import {
   ORDER_ADMIN_DELETE_SUCCESS,
   ORDER_ADMIN_DELETE_FAIL,
   ORDER_ADMIN_DELETE_RESET,
+  ORDER_UPDATE_STATUS_REQUEST,
+  ORDER_UPDATE_STATUS_SUCCESS,
+  ORDER_UPDATE_STATUS_FAIL,
+  ORDER_UPDATE_STATUS_RESET,
 } from '../constants/orderConstants'
 
 
@@ -110,6 +114,22 @@ export const orderDeliverReducer = (state = {}, action) => {
     case ORDER_DELIVER_FAIL:
       return { loading: false, error: action.payload }
     case ORDER_DELIVER_RESET:
+      return {}
+    default:
+      return state
+  }
+}
+
+// ✅ A3: Admin cập nhật trạng thái đơn hàng chi tiết (timeline)
+export const orderUpdateStatusReducer = (state = {}, action) => {
+  switch (action.type) {
+    case ORDER_UPDATE_STATUS_REQUEST:
+      return { loading: true }
+    case ORDER_UPDATE_STATUS_SUCCESS:
+      return { loading: false, success: true }
+    case ORDER_UPDATE_STATUS_FAIL:
+      return { loading: false, error: action.payload }
+    case ORDER_UPDATE_STATUS_RESET:
       return {}
     default:
       return state
@@ -248,11 +268,3 @@ export const orderAdminDeleteReducer = (state = {}, action) => {
       return state
   }
 }
-
-
-
-
-
-
-
-

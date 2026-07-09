@@ -11,6 +11,7 @@ import {
   approveCancelOrder,
   rejectCancelOrder,
   trackOrder,
+  updateOrderStatus,
 } from '../actions/orderActions'
 import { deleteOrderByAdmin } from '../actions/orderAdminActions'
 import ConfirmDeleteModal from '../components/ConfirmDeleteModal'
@@ -22,7 +23,14 @@ import {
   ORDER_APPROVE_CANCEL_RESET,
   ORDER_REJECT_CANCEL_RESET,
   ORDER_TRACK_RESET,
+  ORDER_UPDATE_STATUS_RESET,
 } from '../constants/orderConstants'
+import {
+  STATUS_STEPS,
+  BRANCH_STATUSES,
+  ADMIN_STATUS_OPTIONS,
+  getOrderStatusInfo,
+} from '../constants/orderStatusConfig'
 
 const SEPAY_BANK_ID  = 'VCB'
 const SEPAY_ACCOUNT  = '0000000001'
@@ -109,6 +117,195 @@ const GHN_STATUS_LABEL = {
 
 const getGHNStatus = (status) =>
   GHN_STATUS_LABEL[status] || { label: status || 'Không rõ', color: '#b8bcc8', icon: 'fas fa-circle' }
+
+// ─── A3: 12 trạng thái đơn hàng chi tiết theo timeline ───────────────────────
+// (STATUS_STEPS, BRANCH_STATUSES, ADMIN_STATUS_OPTIONS được import dùng chung
+// từ '../constants/orderStatusConfig' — xem import ở đầu file)
+
+const formatDateTime = (d) => {
+  if (!d) return ''
+  const date = new Date(d)
+  return date.toLocaleString('vi-VN', {
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  })
+}
+
+// ─── Component Timeline dọc ───────────────────────────────────────────────────
+const OrderTimeline = ({ order, isAdmin }) => {
+  const dispatch = useDispatch()
+  const orderUpdateStatus = useSelector((state) => state.orderUpdateStatus)
+  const { loading: loadingStatus, error: errorStatus, success: successStatus } = orderUpdateStatus
+
+  const [selectedStatus, setSelectedStatus] = useState('')
+  const [note, setNote] = useState('')
+
+  useEffect(() => {
+    if (successStatus) {
+      dispatch({ type: ORDER_UPDATE_STATUS_RESET })
+      setNote('')
+      setSelectedStatus('')
+    }
+  }, [successStatus, dispatch])
+
+  const currentStatus = order.status || (order.isCancelled ? 'cancelled' : order.isDelivered ? 'delivered' : 'pending')
+  const isBranch = !!BRANCH_STATUSES[currentStatus]
+  const currentIndex = STATUS_STEPS.findIndex((s) => s.key === currentStatus)
+
+  const history = Array.isArray(order.statusHistory) ? order.statusHistory : []
+  const historyMap = {}
+  history.forEach((h) => { historyMap[h.status] = h })
+
+  const submitStatusHandler = () => {
+    if (!selectedStatus) return
+    if (window.confirm(`Cập nhật trạng thái đơn hàng sang "${ADMIN_STATUS_OPTIONS.find(o => o.value === selectedStatus)?.label}"?`)) {
+      dispatch(updateOrderStatus(order._id, selectedStatus, note))
+    }
+  }
+
+  return (
+    <div style={sectionStyle}>
+      <h5 style={{ color: '#33FFCC', fontWeight: '700', marginBottom: '20px' }}>
+        <i className='fas fa-stream me-2'></i>Trạng thái đơn hàng
+      </h5>
+
+      {/* ── Timeline dọc chính (8 bước) ── */}
+      <div style={{ position: 'relative', paddingLeft: '4px' }}>
+        {STATUS_STEPS.map((step, i) => {
+          const isDone = !isBranch && i < currentIndex
+          const isCurrent = !isBranch && i === currentIndex
+          const isFuture = isBranch || i > currentIndex
+          const eventInfo = historyMap[step.key]
+
+          const dotColor = isCurrent ? '#33FFCC' : isDone ? '#4cdb80' : '#3a3a55'
+          const textColor = isCurrent ? '#33FFCC' : isDone ? '#eef0f7' : '#6b7085'
+
+          return (
+            <div key={step.key} style={{ display: 'flex', gap: '16px', position: 'relative' }}>
+              {/* Đường nối + chấm tròn */}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '32px' }}>
+                <div style={{
+                  width: '32px', height: '32px', borderRadius: '50%',
+                  background: isCurrent ? 'rgba(51,255,204,0.15)' : isDone ? 'rgba(76,219,128,0.12)' : 'rgba(255,255,255,0.03)',
+                  border: `2px solid ${dotColor}`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  flexShrink: 0, zIndex: 1,
+                  boxShadow: isCurrent ? '0 0 0 4px rgba(51,255,204,0.15)' : 'none',
+                }}>
+                  <i className={step.icon} style={{ fontSize: '13px', color: dotColor }}></i>
+                </div>
+                {i < STATUS_STEPS.length - 1 && (
+                  <div style={{
+                    width: '2px', flex: 1, minHeight: '28px',
+                    background: isDone ? '#4cdb80' : '#2a2a45',
+                    margin: '2px 0',
+                  }} />
+                )}
+              </div>
+
+              {/* Nội dung bước */}
+              <div style={{ paddingBottom: '22px', flex: 1 }}>
+                <div style={{ color: textColor, fontWeight: isCurrent ? '700' : '600', fontSize: '14px' }}>
+                  {step.label}
+                  {isCurrent && (
+                    <span style={{
+                      marginLeft: '8px', fontSize: '11px', color: '#0f0f23',
+                      background: '#33FFCC', padding: '2px 8px', borderRadius: '10px', fontWeight: '700',
+                    }}>
+                      Hiện tại
+                    </span>
+                  )}
+                </div>
+                {eventInfo && (
+                  <div style={{ color: '#8a8fa3', fontSize: '12px', marginTop: '2px' }}>
+                    {formatDateTime(eventInfo.changedAt)}
+                    {eventInfo.note ? ` — ${eventInfo.note}` : ''}
+                  </div>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* ── Trạng thái rẽ nhánh (hủy / thất bại / hoàn hàng) ── */}
+      {isBranch && (
+        <div style={{
+          marginTop: '4px', padding: '14px 16px', borderRadius: '10px',
+          background: `${BRANCH_STATUSES[currentStatus].color}12`,
+          border: `1px solid ${BRANCH_STATUSES[currentStatus].color}`,
+          display: 'flex', alignItems: 'center', gap: '10px',
+        }}>
+          <i className={BRANCH_STATUSES[currentStatus].icon} style={{ color: BRANCH_STATUSES[currentStatus].color, fontSize: '16px' }}></i>
+          <div>
+            <div style={{ color: BRANCH_STATUSES[currentStatus].color, fontWeight: '700', fontSize: '14px' }}>
+              {BRANCH_STATUSES[currentStatus].label}
+            </div>
+            {historyMap[currentStatus] && (
+              <div style={{ color: '#8a8fa3', fontSize: '12px', marginTop: '2px' }}>
+                {formatDateTime(historyMap[currentStatus].changedAt)}
+                {historyMap[currentStatus].note ? ` — ${historyMap[currentStatus].note}` : ''}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Admin: dropdown cập nhật trạng thái thủ công ── */}
+      {isAdmin && (
+        <div style={{
+          marginTop: '20px', paddingTop: '20px',
+          borderTop: '1px dashed rgba(51,255,204,0.25)',
+        }}>
+          <div style={{ color: '#b8bcc8', fontSize: '13px', marginBottom: '8px' }}>
+            <i className='fas fa-user-shield me-2'></i>Admin — Cập nhật trạng thái thủ công
+          </div>
+          {errorStatus && <Message variant='danger'>{errorStatus}</Message>}
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+            <select
+              value={selectedStatus}
+              onChange={(e) => setSelectedStatus(e.target.value)}
+              style={{
+                background: '#0f0f23', color: '#ffffff',
+                border: '1px solid rgba(51,255,204,0.4)', borderRadius: '8px',
+                padding: '8px 12px', fontSize: '13px', minWidth: '180px',
+              }}
+            >
+              <option value=''>-- Chọn trạng thái --</option>
+              {ADMIN_STATUS_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+            <input
+              type='text'
+              placeholder='Ghi chú (không bắt buộc)'
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              style={{
+                flex: 1, minWidth: '160px', background: '#0f0f23', color: '#ffffff',
+                border: '1px solid rgba(51,255,204,0.4)', borderRadius: '8px',
+                padding: '8px 12px', fontSize: '13px', outline: 'none',
+              }}
+            />
+            <button
+              onClick={submitStatusHandler}
+              disabled={!selectedStatus || loadingStatus}
+              style={{
+                background: !selectedStatus || loadingStatus ? '#3a3a55' : '#33FFCC',
+                border: 'none', borderRadius: '8px', padding: '8px 18px',
+                color: !selectedStatus || loadingStatus ? '#8a8fa3' : '#0f0f23',
+                fontWeight: '700', fontSize: '13px',
+                cursor: !selectedStatus || loadingStatus ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {loadingStatus ? <><i className='fas fa-spinner fa-spin me-2'></i>Đang lưu...</> : 'Cập nhật'}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 // ─── Tracking UI Component ────────────────────────────────────────────────────
 const TrackingSection = ({ orderId }) => {
@@ -465,13 +662,14 @@ const OrderScreen = ({ match, history }) => {
 
       <div style={{ ...sectionStyle, padding: '16px 24px', display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
         <span style={{ color: '#b8bcc8', fontSize: '13px', marginRight: '4px' }}>Trạng thái:</span>
-        {order.isCancelled ? (
-          <StatusBadge color='#ff6b6b'><i className='fas fa-times-circle'></i> Đã hủy</StatusBadge>
-        ) : order.isDelivered ? (
-          <StatusBadge color='#4cdb80'><i className='fas fa-check-circle'></i> Đã giao hàng</StatusBadge>
-        ) : (
-          <StatusBadge color='#ffd166'><i className='fas fa-truck'></i> Đang giao</StatusBadge>
-        )}
+        {(() => {
+          const statusInfo = getOrderStatusInfo(order)
+          return (
+            <StatusBadge color={statusInfo.color}>
+              <i className={statusInfo.icon}></i> {statusInfo.label}
+            </StatusBadge>
+          )
+        })()}
         {order.isPaid ? (
           <StatusBadge color='#4cdb80'><i className='fas fa-check-circle'></i> Đã thanh toán</StatusBadge>
         ) : (
@@ -486,6 +684,9 @@ const OrderScreen = ({ match, history }) => {
           </StatusBadge>
         )}
       </div>
+
+      {/* A3: Timeline trạng thái chi tiết + Admin cập nhật thủ công */}
+      <OrderTimeline order={order} isAdmin={!!userInfo?.isAdmin} />
 
       <Row className='g-4'>
         <Col lg={8}>

@@ -1,0 +1,64 @@
+@startuml
+title Use Case Diagram - HariShop (Backend)
+
+left to right direction
+
+actor Customer
+actor Admin
+actor "SePay System" as Sepay
+actor "GHN System" as GHN
+
+rectangle "Customer & Order Module" {
+  (Browse Products) as UC_Browse
+  (View Product Details) as UC_ProductDetail
+  (Apply Voucher) as UC_ApplyVoucher
+  (Checkout / Create Order) as UC_CreateOrder
+  (Track Shipment) as UC_Track
+  (Request Cancel Order) as UC_RequestCancel
+}
+
+rectangle "Admin Module" {
+  (List Orders) as UC_AdminList
+  (View Order Details) as UC_AdminView
+  (Approve Cancel Order) as UC_ApproveCancel
+  (Reject Cancel Order) as UC_RejectCancel
+  (Revenue Summary) as UC_Revenue
+  (Brand Breakdown) as UC_Brand
+  (Delete Order) as UC_DeleteOrder
+}
+
+rectangle "External Integrations" {
+  (Webhook: Payment Update) as UC_SepayWebhook
+  (Create GHN Shipping Order) as UC_GHN_Create
+  (Track GHN Shipment) as UC_GHN_Track
+  (Cancel GHN Shipping Order) as UC_GHN_Cancel
+}
+
+Customer --> UC_Browse
+Customer --> UC_ProductDetail
+Customer --> UC_ApplyVoucher
+Customer --> UC_CreateOrder
+Customer --> UC_Track
+Customer --> UC_RequestCancel
+
+Admin --> UC_AdminList
+Admin --> UC_AdminView
+Admin --> UC_ApproveCancel
+Admin --> UC_RejectCancel
+Admin --> UC_Revenue
+Admin --> UC_Brand
+Admin --> UC_DeleteOrder
+
+Sepay --> UC_SepayWebhook
+
+Customer --> UC_CreateOrder
+UC_CreateOrder ..> UC_GHN_Create : <<if provider=ghn>>
+
+Customer --> UC_Track
+UC_Track ..> UC_GHN_Track : <<call detail>>
+
+Admin --> UC_ApproveCancel
+UC_ApproveCancel ..> UC_GHN_Cancel : <<switch-status/cancel>>
+
+@enduml
+

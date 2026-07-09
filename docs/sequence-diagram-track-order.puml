@@ -1,0 +1,38 @@
+@startuml
+title Sequence Diagram - Track Shipment (GHN detail)
+
+actor Customer
+participant Frontend as FE
+participant "OrderRoutes" as OR
+participant "AuthMiddleware (protect)" as Auth
+participant "OrderController" as OC
+participant "Order (Mongoose)" as Order
+participant "GHN Provider" as GHN
+
+Customer -> FE : Open Tracking screen (orderId)
+FE -> OR : GET /api/orders/:id/track (Authorization: Bearer)
+OR -> Auth : protect(req)
+Auth -> OR : req.user
+OR -> OC : trackOrder
+
+OC -> Order : findById(orderId)
+alt order not found
+  OC --> OR : 404 error
+else ownership check
+  OC -> OC : if order.user!=req.user && !req.user.isAdmin => 401
+end
+
+alt order.ghnOrderCode is empty
+  OC --> OR : JSON {available:false, reason:'no ghnOrderCode'}
+else has ghnOrderCode
+  OC -> GHN : shipping-order/detail(order_code)
+  GHN --> OC : log/events + current status
+  OC -> OC : map GHN log -> events[]
+  OC --> OR : JSON {available:true, events, currentStatus, estimatedDelivery}
+end
+
+OR --> FE : tracking data
+FE --> Customer : Render timeline/events
+
+@enduml
+

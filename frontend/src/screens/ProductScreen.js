@@ -400,6 +400,55 @@ const ProductScreen = ({ history, match }) => {
             </Col>
           </Row>
 
+          {/* ===== THÔNG SỐ KỸ THUẬT ===== */}
+          {product.specs && Object.values(product.specs).some((v) => v) && (
+            <div style={{ ...cardStyle, marginTop: '16px' }}>
+              <h3 style={{
+                color: '#33FFCC',
+                fontWeight: '700',
+                marginBottom: '20px',
+                paddingBottom: '16px',
+                borderBottom: '2px solid rgba(51,255,204,0.2)',
+              }}>
+                <i className='fas fa-microchip me-2'></i>Thông Số Kỹ Thuật
+              </h3>
+
+              <div style={{ display: 'flex', flexDirection: 'column', borderRadius: '10px', overflow: 'hidden' }}>
+                {[
+                  ['Chip', product.specs.chip],
+                  ['RAM', product.specs.ram],
+                  ['Bộ nhớ trong', product.specs.storage],
+                  ['Màn hình', product.specs.screenSize],
+                  ['Loại màn hình', product.specs.screenType],
+                  ['Camera', product.specs.camera],
+                  ['Pin', product.specs.battery ? `${product.specs.battery} mAh` : ''],
+                  ['Hệ điều hành', product.specs.os],
+                  ['SIM', product.specs.sim],
+                  ['Kết nối', product.specs.connectivity],
+                ]
+                  .filter(([, value]) => value)
+                  .map(([label, value], i) => (
+                    <div
+                      key={label}
+                      style={{
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        padding: '12px 16px',
+                        background: i % 2 === 0 ? 'rgba(255,255,255,0.03)' : 'transparent',
+                      }}
+                    >
+                      <div style={{ flex: '0 0 40%', minWidth: '140px', color: '#b8bcc8', fontSize: '14px' }}>
+                        {label}
+                      </div>
+                      <div style={{ flex: '1 1 60%', color: '#eef0f7', fontSize: '14px', fontWeight: '600' }}>
+                        {value}
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
+
           {/* ===== REVIEWS ===== */}
           <div style={{ ...cardStyle, marginTop: '16px' }}>
             <h3 style={{

@@ -1,0 +1,9 @@
+1) Analyze backend modules for Order/Product/Voucher/Shipping/Auth.
+2) Create docs/class-diagram.puml
+3) Create docs/usecase-diagram.puml
+4) Create multiple sequence diagrams:
+   - docs/sequence-diagram-create-order.puml
+   - docs/sequence-diagram-approve-cancel.puml
+   - docs/sequence-diagram-track-order.puml
+   - docs/sequence-diagram-sepay-webhook.puml
+
