@@ -4,6 +4,7 @@ import { useDispatch, useSelector } from 'react-redux'
 import { LinkContainer } from 'react-router-bootstrap'
 import { Navbar, Nav, Container, NavDropdown, Button, Badge } from 'react-bootstrap'
 import SearchBox from './SearchBox'
+import NotificationBell from './NotificationBell'
 import { logout } from '../actions/userActions'
 
 const Header = () => {
@@ -71,6 +72,11 @@ const Header = () => {
                 <i className={`fas ${theme === 'dark' ? 'fa-sun' : 'fa-moon'} theme-icon`}></i>
               </Button>
 
+              {/* THÔNG BÁO — chỉ hiện với Admin */}
+              {/* THÔNG BÁO — Admin thấy thông báo quản trị, Khách hàng thấy thông báo đơn hàng của mình */}
+              {userInfo && userInfo.isAdmin && <NotificationBell scope='admin' />}
+              {userInfo && !userInfo.isAdmin && <NotificationBell scope='customer' />}
+
               {/* CART WITH BADGE */}
               <LinkContainer to='/cart'>
                 <Nav.Link className="nav-link-pro px-3 position-relative">
@@ -130,6 +136,11 @@ const Header = () => {
                       <i className='fas fa-shopping-bag me-2'></i>Đơn Hàng
                     </NavDropdown.Item>
                   </LinkContainer>
+                  <LinkContainer to='/admin/revenue'>
+                    <NavDropdown.Item className="dropdown-item-pro">
+                      <i className='fas fa-chart-line me-2'></i>Thống Kê
+                    </NavDropdown.Item>
+                  </LinkContainer>
                   <LinkContainer to='/admin/voucherlist'>
                     <NavDropdown.Item className="dropdown-item-pro">
                       <i className='fas fa-ticket-alt me-2'></i>Voucher
@@ -151,4 +162,3 @@ const Header = () => {
 }
 
 export default Header
-

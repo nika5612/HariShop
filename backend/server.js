@@ -26,6 +26,7 @@ import uploadRoutes from './routes/uploadRoutes.js'
 
 import shippingRoutes from './routes/shippingRoutes.js'
 import settingsRoutes from './routes/settingsRoutes.js'
+import notificationRoutes from './routes/notificationRoutes.js'
 import { notFound, errorHandler } from './middleware/errorMiddleware.js'
 // ✅ XÓA import transporter ở đây
 import Settings from './models/settingsModel.js'
@@ -172,6 +173,7 @@ app.use('/api/vouchers', voucherRoutes)
 app.use('/api/upload', uploadRoutes)
 app.use('/api/shipping', shippingRoutes)
 app.use('/api/settings', settingsRoutes)
+app.use('/api/notifications', notificationRoutes)
 
 // ✅ sePay webhook (no auth)
 app.use('/api/payments', sepayWebhookRoutes)

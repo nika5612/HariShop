@@ -12,6 +12,8 @@ import {
   rejectCancelOrder,
   trackOrder,
   updateOrderStatus,
+  requestRefund,
+  completeRefund,
 } from '../actions/orderActions'
 import { deleteOrderByAdmin } from '../actions/orderAdminActions'
 import ConfirmDeleteModal from '../components/ConfirmDeleteModal'
@@ -24,6 +26,8 @@ import {
   ORDER_REJECT_CANCEL_RESET,
   ORDER_TRACK_RESET,
   ORDER_UPDATE_STATUS_RESET,
+  ORDER_REFUND_REQUEST_RESET,
+  ORDER_REFUND_COMPLETE_RESET,
 } from '../constants/orderConstants'
 import {
   STATUS_STEPS,
@@ -567,6 +571,12 @@ const OrderScreen = ({ match, history }) => {
   const orderRejectCancel = useSelector((state) => state.orderRejectCancel)
   const { success: successRejectCancel } = orderRejectCancel
 
+  const orderRefundRequest = useSelector((state) => state.orderRefundRequest)
+  const { loading: loadingRefundReq, error: errorRefundReq, success: successRefundReq } = orderRefundRequest
+
+  const orderRefundComplete = useSelector((state) => state.orderRefundComplete)
+  const { loading: loadingRefundComplete, error: errorRefundComplete, success: successRefundComplete } = orderRefundComplete
+
   const orderAdminDelete = useSelector((state) => state.orderAdminDelete)
   const { loading: loadingDelete, success: successDelete } = orderAdminDelete
 
@@ -577,18 +587,31 @@ const OrderScreen = ({ match, history }) => {
   const [showCancelForm, setShowCancelForm] = useState(false)
   const [showConfirmDeleteOrder, setShowConfirmDeleteOrder] = useState(false)
 
+  // ── MỚI (A5): form yêu cầu hoàn tiền (khách) ──────────────────
+  const [showRefundForm, setShowRefundForm] = useState(false)
+  const [refundBankName, setRefundBankName] = useState('')
+  const [refundAccountNumber, setRefundAccountNumber] = useState('')
+  const [refundAccountHolder, setRefundAccountHolder] = useState('')
+  const [refundReason, setRefundReason] = useState('')
+
+  // ── MỚI (A5): form Admin xác nhận đã hoàn tiền ────────────────
+  const [refundCompleteAmount, setRefundCompleteAmount] = useState('')
+  const [refundCompleteNote, setRefundCompleteNote] = useState('')
+
   useEffect(() => {
     if (!userInfo) {
       history.push('/login')
       return
     }
 
-    if (successApproveCancel || successRejectCancel || successDeliver || successCancelReq || successDelete) {
+    if (successApproveCancel || successRejectCancel || successDeliver || successCancelReq || successDelete || successRefundReq || successRefundComplete) {
       dispatch({ type: ORDER_PAY_RESET })
       dispatch({ type: ORDER_DELIVER_RESET })
       dispatch({ type: ORDER_CANCEL_REQUEST_RESET })
       dispatch({ type: ORDER_APPROVE_CANCEL_RESET })
       dispatch({ type: ORDER_REJECT_CANCEL_RESET })
+      dispatch({ type: ORDER_REFUND_REQUEST_RESET })
+      dispatch({ type: ORDER_REFUND_COMPLETE_RESET })
 
       if (successDelete) {
         dispatch({ type: 'ORDER_ADMIN_DELETE_RESET' })
@@ -607,6 +630,7 @@ const OrderScreen = ({ match, history }) => {
   }, [
     dispatch, orderId, history, userInfo, orderIdInState,
     successDeliver, successCancelReq, successApproveCancel, successRejectCancel, successDelete,
+    successRefundReq, successRefundComplete,
   ])
 
   const deliverHandler = () => {
@@ -626,6 +650,31 @@ const OrderScreen = ({ match, history }) => {
 
   const rejectHandler = () => {
     if (window.confirm('Từ chối yêu cầu hủy đơn này?')) dispatch(rejectCancelOrder(orderId))
+  }
+
+  // ── MỚI (A5): khách gửi yêu cầu hoàn tiền ─────────────────────
+  const submitRefundHandler = (e) => {
+    e.preventDefault()
+    if (!refundBankName.trim() || !refundAccountNumber.trim() || !refundAccountHolder.trim()) {
+      window.alert('Vui lòng nhập đầy đủ thông tin tài khoản ngân hàng')
+      return
+    }
+    if (window.confirm('Xác nhận gửi yêu cầu hoàn tiền với thông tin tài khoản trên?')) {
+      dispatch(requestRefund(orderId, {
+        bankName: refundBankName.trim(),
+        accountNumber: refundAccountNumber.trim(),
+        accountHolder: refundAccountHolder.trim(),
+        reason: refundReason.trim(),
+      }))
+    }
+  }
+
+  // ── MỚI (A5): Admin xác nhận đã hoàn tiền ─────────────────────
+  const completeRefundHandler = () => {
+    const amount = Number(refundCompleteAmount) || order.totalPrice
+    if (window.confirm(`Xác nhận ĐÃ chuyển khoản hoàn tiền ${amount.toLocaleString('vi-VN')}đ cho khách?`)) {
+      dispatch(completeRefund(orderId, amount, refundCompleteNote.trim()))
+    }
   }
 
   if (loading) return <Loader />
@@ -881,6 +930,116 @@ const OrderScreen = ({ match, history }) => {
                   <i className='fas fa-times me-2'></i>Từ chối
                 </button>
               </div>
+            </div>
+          )}
+
+          {/* ═══════════ A5: HOÀN TIỀN KHI GIAO HÀNG THẤT BẠI ═══════════ */}
+
+          {/* Badge trạng thái hoàn tiền — hiện cho cả khách & admin khi đã có yêu cầu */}
+          {order.refundStatus && order.refundStatus !== 'none' && (
+            <div style={{
+              ...sectionStyle,
+              border: `1px solid ${order.refundStatus === 'completed' ? 'rgba(76,219,128,0.35)' : order.refundStatus === 'rejected' ? 'rgba(255,107,107,0.35)' : 'rgba(255,209,102,0.35)'}`,
+            }}>
+              <h5 style={{
+                color: order.refundStatus === 'completed' ? '#4cdb80' : order.refundStatus === 'rejected' ? '#ff6b6b' : '#ffd166',
+                fontWeight: '700', marginBottom: '12px',
+              }}>
+                <i className={`fas ${order.refundStatus === 'completed' ? 'fa-check-circle' : order.refundStatus === 'rejected' ? 'fa-times-circle' : 'fa-hourglass-half'} me-2`}></i>
+                {order.refundStatus === 'completed' ? 'Đã hoàn tiền' : order.refundStatus === 'rejected' ? 'Yêu cầu hoàn tiền bị từ chối' : 'Đang chờ xử lý hoàn tiền'}
+              </h5>
+
+              {order.refundStatus === 'completed' && (
+                <div style={{ color: '#b8bcc8', fontSize: '14px' }}>
+                  Số tiền: <strong style={{ color: '#4cdb80' }}>{Number(order.refundAmount).toLocaleString('vi-VN')}đ</strong>
+                  <br />Thời gian: {order.refundAt ? new Date(order.refundAt).toLocaleString('vi-VN') : ''}
+                  {order.refundNote && <><br />Ghi chú: {order.refundNote}</>}
+                </div>
+              )}
+
+              {order.refundStatus === 'requested' && (
+                <div style={{ color: '#b8bcc8', fontSize: '14px' }}>
+                  Yêu cầu gửi lúc: {order.refundRequestedAt ? new Date(order.refundRequestedAt).toLocaleString('vi-VN') : ''}
+                  {order.refundReason && <><br />Lý do: {order.refundReason}</>}
+                </div>
+              )}
+
+              {/* Admin: xem thông tin ngân hàng + xác nhận đã hoàn tiền */}
+              {userInfo?.isAdmin && order.refundStatus === 'requested' && (
+                <div style={{ marginTop: '14px' }}>
+                  <div style={{ background: 'rgba(255,209,102,0.08)', borderRadius: '10px', padding: '14px 16px', marginBottom: '14px', border: '1px solid rgba(255,209,102,0.2)' }}>
+                    <div style={labelStyle}>Thông tin tài khoản ngân hàng của khách</div>
+                    <div style={{ color: '#ffffff', fontSize: '14px', marginTop: '6px', lineHeight: 1.6 }}>
+                      Ngân hàng: <strong>{order.refundBankInfo?.bankName}</strong><br />
+                      Số tài khoản: <strong>{order.refundBankInfo?.accountNumber}</strong><br />
+                      Chủ tài khoản: <strong>{order.refundBankInfo?.accountHolder}</strong>
+                    </div>
+                  </div>
+
+                  {errorRefundComplete && <Message variant='danger'>{errorRefundComplete}</Message>}
+
+                  <input
+                    type='number' placeholder={`Số tiền hoàn (mặc định ${order.totalPrice?.toLocaleString('vi-VN')}đ)`}
+                    value={refundCompleteAmount} onChange={(e) => setRefundCompleteAmount(e.target.value)}
+                    style={{ width: '100%', background: '#0f0f23', border: '1px solid rgba(255,209,102,0.4)', borderRadius: '8px', padding: '10px 14px', color: '#ffffff', fontSize: '14px', outline: 'none', marginBottom: '10px' }}
+                  />
+                  <input
+                    type='text' placeholder='Ghi chú (không bắt buộc)'
+                    value={refundCompleteNote} onChange={(e) => setRefundCompleteNote(e.target.value)}
+                    style={{ width: '100%', background: '#0f0f23', border: '1px solid rgba(255,209,102,0.4)', borderRadius: '8px', padding: '10px 14px', color: '#ffffff', fontSize: '14px', outline: 'none', marginBottom: '12px' }}
+                  />
+                  <button
+                    onClick={completeRefundHandler} disabled={loadingRefundComplete}
+                    style={{ background: '#4cdb80', border: 'none', borderRadius: '8px', padding: '10px 24px', color: '#0f0f23', fontWeight: '700', fontSize: '14px', cursor: loadingRefundComplete ? 'not-allowed' : 'pointer', opacity: loadingRefundComplete ? 0.7 : 1 }}
+                  >
+                    <i className='fas fa-check-double me-2'></i>{loadingRefundComplete ? 'Đang lưu...' : 'Xác nhận đã hoàn tiền'}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Khách: nút yêu cầu hoàn tiền — chỉ hiện khi đủ điều kiện và chưa gửi yêu cầu */}
+          {isOwner && order.isPaid && ['delivery_failed', 'returned'].includes(order.status) &&
+            (!order.refundStatus || order.refundStatus === 'none') && (
+            <div style={sectionStyle}>
+              <h5 style={{ color: '#ffd166', fontWeight: '700', marginBottom: '16px' }}>
+                <i className='fas fa-hand-holding-usd me-2'></i>Yêu cầu hoàn tiền
+              </h5>
+              <div style={{ color: '#b8bcc8', fontSize: '13px', marginBottom: '14px' }}>
+                Đơn hàng đã thanh toán nhưng {order.status === 'delivery_failed' ? 'giao hàng không thành công' : 'hàng đã được hoàn về kho'}.
+                Vui lòng cung cấp thông tin tài khoản ngân hàng để nhận lại tiền.
+              </div>
+
+              {!showRefundForm ? (
+                <button onClick={() => setShowRefundForm(true)} style={{ background: 'transparent', border: '1px solid #ffd166', color: '#ffd166', borderRadius: '10px', padding: '10px 24px', fontSize: '14px', fontWeight: '600', cursor: 'pointer' }}>
+                  <i className='fas fa-hand-holding-usd me-2'></i> Yêu cầu hoàn tiền
+                </button>
+              ) : (
+                <div>
+                  {errorRefundReq && <Message variant='danger'>{errorRefundReq}</Message>}
+                  <input type='text' placeholder='Tên ngân hàng (VD: Vietcombank)' value={refundBankName}
+                    onChange={(e) => setRefundBankName(e.target.value)}
+                    style={{ width: '100%', background: '#0f0f23', border: '1px solid rgba(255,209,102,0.4)', borderRadius: '8px', padding: '10px 14px', color: '#ffffff', fontSize: '14px', outline: 'none', marginBottom: '10px' }} />
+                  <input type='text' placeholder='Số tài khoản' value={refundAccountNumber}
+                    onChange={(e) => setRefundAccountNumber(e.target.value)}
+                    style={{ width: '100%', background: '#0f0f23', border: '1px solid rgba(255,209,102,0.4)', borderRadius: '8px', padding: '10px 14px', color: '#ffffff', fontSize: '14px', outline: 'none', marginBottom: '10px' }} />
+                  <input type='text' placeholder='Chủ tài khoản' value={refundAccountHolder}
+                    onChange={(e) => setRefundAccountHolder(e.target.value)}
+                    style={{ width: '100%', background: '#0f0f23', border: '1px solid rgba(255,209,102,0.4)', borderRadius: '8px', padding: '10px 14px', color: '#ffffff', fontSize: '14px', outline: 'none', marginBottom: '10px' }} />
+                  <input type='text' placeholder='Lý do / ghi chú thêm (không bắt buộc)' value={refundReason}
+                    onChange={(e) => setRefundReason(e.target.value)}
+                    style={{ width: '100%', background: '#0f0f23', border: '1px solid rgba(255,209,102,0.4)', borderRadius: '8px', padding: '10px 14px', color: '#ffffff', fontSize: '14px', outline: 'none', marginBottom: '12px' }} />
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <button onClick={submitRefundHandler} disabled={loadingRefundReq} style={{ background: '#ffd166', border: 'none', borderRadius: '8px', padding: '10px 20px', color: '#0f0f23', fontWeight: '700', fontSize: '14px', cursor: loadingRefundReq ? 'not-allowed' : 'pointer', opacity: loadingRefundReq ? 0.7 : 1 }}>
+                      <i className='fas fa-paper-plane me-2'></i>{loadingRefundReq ? 'Đang gửi...' : 'Gửi yêu cầu'}
+                    </button>
+                    <button onClick={() => setShowRefundForm(false)} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', color: '#b8bcc8', borderRadius: '8px', padding: '10px 20px', fontSize: '14px', cursor: 'pointer' }}>
+                      Hủy bỏ
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </Col>

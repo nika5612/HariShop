@@ -51,6 +51,17 @@ import {
   ORDER_UPDATE_STATUS_SUCCESS,
   ORDER_UPDATE_STATUS_FAIL,
   ORDER_UPDATE_STATUS_RESET,
+  ORDER_REFUND_REQUEST_REQUEST,
+  ORDER_REFUND_REQUEST_SUCCESS,
+  ORDER_REFUND_REQUEST_FAIL,
+  ORDER_REFUND_REQUEST_RESET,
+  ORDER_REFUND_COMPLETE_REQUEST,
+  ORDER_REFUND_COMPLETE_SUCCESS,
+  ORDER_REFUND_COMPLETE_FAIL,
+  ORDER_REFUND_COMPLETE_RESET,
+  REVENUE_ANALYTICS_REQUEST,
+  REVENUE_ANALYTICS_SUCCESS,
+  REVENUE_ANALYTICS_FAIL,
 } from '../constants/orderConstants'
 
 
@@ -247,6 +258,51 @@ export const orderAdminBrandReducer = (state = {}, action) => {
     case ORDER_ADMIN_BRAND_SUCCESS:
       return { loading: false, data: action.payload }
     case ORDER_ADMIN_BRAND_FAIL:
+      return { loading: false, error: action.payload }
+    default:
+      return state
+  }
+}
+
+// ✅ A5: Hoàn tiền khi giao hàng thất bại
+export const orderRefundRequestReducer = (state = {}, action) => {
+  switch (action.type) {
+    case ORDER_REFUND_REQUEST_REQUEST:
+      return { loading: true }
+    case ORDER_REFUND_REQUEST_SUCCESS:
+      return { loading: false, success: true }
+    case ORDER_REFUND_REQUEST_FAIL:
+      return { loading: false, error: action.payload }
+    case ORDER_REFUND_REQUEST_RESET:
+      return {}
+    default:
+      return state
+  }
+}
+
+export const orderRefundCompleteReducer = (state = {}, action) => {
+  switch (action.type) {
+    case ORDER_REFUND_COMPLETE_REQUEST:
+      return { loading: true }
+    case ORDER_REFUND_COMPLETE_SUCCESS:
+      return { loading: false, success: true }
+    case ORDER_REFUND_COMPLETE_FAIL:
+      return { loading: false, error: action.payload }
+    case ORDER_REFUND_COMPLETE_RESET:
+      return {}
+    default:
+      return state
+  }
+}
+
+// ✅ A4: Thống kê doanh thu nâng cao
+export const revenueAnalyticsReducer = (state = {}, action) => {
+  switch (action.type) {
+    case REVENUE_ANALYTICS_REQUEST:
+      return { loading: true }
+    case REVENUE_ANALYTICS_SUCCESS:
+      return { loading: false, data: action.payload }
+    case REVENUE_ANALYTICS_FAIL:
       return { loading: false, error: action.payload }
     default:
       return state

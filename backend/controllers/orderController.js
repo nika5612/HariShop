@@ -3,6 +3,7 @@ import mongoose from 'mongoose'
 import Order from '../models/orderModel.js'
 import Settings from '../models/settingsModel.js'
 import Voucher from '../models/voucherModel.js'
+import { createNotification } from './notificationController.js'
 
 
 const USE_SANDBOX = (process.env.GHN_USE_SANDBOX || '').trim() === 'true'
@@ -156,6 +157,35 @@ const pushStatusHistory = (order, status, note = '', changedBy = null) => {
     note: note || '',
     changedAt: new Date(),
     changedBy: changedBy || undefined,
+  })
+}
+
+// ── MỚI: nhãn tiếng Việt cho từng trạng thái — dùng để soạn nội dung
+// thông báo gửi cho khách hàng khi trạng thái đơn hàng thay đổi ────
+const ORDER_STATUS_LABELS_VI = {
+  pending:          'Đơn hàng đã được đặt thành công',
+  confirmed:        'Đơn hàng đã được xác nhận',
+  packing:          'Đơn hàng đang được đóng gói',
+  waiting_pickup:   'Đơn hàng đang chờ đơn vị vận chuyển lấy hàng',
+  picked_up:        'Đơn vị vận chuyển đã lấy hàng',
+  in_transit:       'Đơn hàng đang được vận chuyển',
+  out_for_delivery: 'Đơn hàng đang được giao đến bạn',
+  delivered:        'Đơn hàng đã giao thành công',
+  delivery_failed:  'Giao hàng không thành công',
+  returning:        'Đơn hàng đang được hoàn về kho',
+  returned:         'Đơn hàng đã hoàn về kho',
+  cancelled:        'Đơn hàng đã bị hủy',
+}
+
+// Helper: bắn thông báo trạng thái đơn hàng cho KHÁCH HÀNG (chủ đơn)
+const notifyCustomerOrderStatus = async (order, status) => {
+  await createNotification({
+    type: 'order_status',
+    title: `Đơn #${order._id.toString().slice(-6).toUpperCase()}: ${ORDER_STATUS_LABELS_VI[status] || status}`,
+    message: '',
+    link: `/order/${order._id}`,
+    order: order._id,
+    user: order.user,
   })
 }
 
@@ -314,6 +344,25 @@ const addOrderItems = asyncHandler(async (req, res) => {
     }
   }
 
+  // ── MỚI: thông báo Admin có đơn hàng mới ──────────────────────
+  await createNotification({
+    type: 'new_order',
+    title: `Đơn hàng mới #${createdOrder._id.toString().slice(-6).toUpperCase()}`,
+    message: `${req.user.name} vừa đặt đơn trị giá ${Number(createdOrder.totalPrice).toLocaleString('vi-VN')}đ`,
+    link: `/order/${createdOrder._id}`,
+    order: createdOrder._id,
+  })
+
+  // ── MỚI: thông báo cho KHÁCH HÀNG đặt hàng thành công ──────────
+  await createNotification({
+    type: 'order_placed',
+    title: `Đơn #${createdOrder._id.toString().slice(-6).toUpperCase()} đã được đặt thành công`,
+    message: `Tổng tiền: ${Number(createdOrder.totalPrice).toLocaleString('vi-VN')}đ`,
+    link: `/order/${createdOrder._id}`,
+    order: createdOrder._id,
+    user: createdOrder.user,
+  })
+
   res.status(201).json(createdOrder)
 })
 
@@ -361,6 +410,19 @@ const updateOrderToDelivered = asyncHandler(async (req, res) => {
     // ── MỚI (A3): đồng bộ với timeline trạng thái ─────────────
     pushStatusHistory(order, 'delivered', 'Giao hàng thành công', req.user?._id)
     const updatedOrder = await order.save()
+
+    // ── MỚI: thông báo giao hàng thành công (Admin) ────────────
+    await createNotification({
+      type: 'order_delivered',
+      title: `Đơn #${order._id.toString().slice(-6).toUpperCase()} đã giao thành công`,
+      message: `Doanh thu: ${Number(order.totalPrice).toLocaleString('vi-VN')}đ`,
+      link: `/order/${order._id}`,
+      order: order._id,
+    })
+
+    // ── MỚI: thông báo cho KHÁCH HÀNG ──────────────────────────
+    await notifyCustomerOrderStatus(order, 'delivered')
+
     res.json(updatedOrder)
   } else {
     res.status(404); throw new Error('Order not found')
@@ -395,6 +457,21 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
   }
 
   const updatedOrder = await order.save()
+
+  // ── MỚI: thông báo Admin khi trạng thái chuyển sang giao thành công ──
+  if (status === 'delivered') {
+    await createNotification({
+      type: 'order_delivered',
+      title: `Đơn #${order._id.toString().slice(-6).toUpperCase()} đã giao thành công`,
+      message: `Doanh thu: ${Number(order.totalPrice).toLocaleString('vi-VN')}đ`,
+      link: `/order/${order._id}`,
+      order: order._id,
+    })
+  }
+
+  // ── MỚI: thông báo cho KHÁCH HÀNG ở MỌI lần thay đổi trạng thái ──
+  await notifyCustomerOrderStatus(order, status)
+
   res.json(updatedOrder)
 })
 
@@ -480,6 +557,8 @@ const trackOrder = asyncHandler(async (req, res) => {
     if (mappedStatus && mappedStatus !== order.status && !order.isCancelled) {
       pushStatusHistory(order, mappedStatus, `Tự động cập nhật từ GHN (${ghnOrder?.status})`)
       await order.save()
+      // ── MỚI: thông báo cho KHÁCH HÀNG ────────────────────────
+      await notifyCustomerOrderStatus(order, mappedStatus)
     }
 
     res.json({
@@ -513,6 +592,16 @@ const cancelOrderRequest = asyncHandler(async (req, res) => {
     requestedAt: Date.now(),
   }
   const updatedOrder = await order.save()
+
+  // ── MỚI: thông báo Admin có yêu cầu huỷ đơn ─────────────────
+  await createNotification({
+    type: 'cancel_request',
+    title: `Yêu cầu huỷ đơn #${order._id.toString().slice(-6).toUpperCase()}`,
+    message: req.body.reason ? `Lý do: ${req.body.reason}` : 'Khách hàng yêu cầu huỷ đơn',
+    link: `/order/${order._id}`,
+    order: order._id,
+  })
+
   res.json(updatedOrder)
 })
 
@@ -579,14 +668,146 @@ const approveCancelOrder = asyncHandler(async (req, res) => {
   pushStatusHistory(order, 'cancelled', order.cancelReason || 'Đơn hàng đã bị hủy', req.user?._id)
 
   const updatedOrder = await order.save()
+
+  // ── MỚI: thông báo cho KHÁCH HÀNG đơn đã được huỷ ──────────────
+  await createNotification({
+    type: 'cancel_approved',
+    title: `Đơn #${order._id.toString().slice(-6).toUpperCase()} đã được hủy`,
+    message: order.cancelReason ? `Lý do: ${order.cancelReason}` : '',
+    link: `/order/${order._id}`,
+    order: order._id,
+    user: order.user,
+  })
+
   res.json(updatedOrder)
 })
 
 const rejectCancelOrder = asyncHandler(async (req, res) => {
   const order = await Order.findById(req.params.id)
   if (!order) { res.status(404); throw new Error('Không tìm thấy đơn hàng') }
+  const reason = req.body?.reason || ''
   order.cancelRequest = { requested: false, reason: '', requestedAt: null }
   const updatedOrder = await order.save()
+
+  // ── MỚI: thông báo cho KHÁCH HÀNG yêu cầu huỷ bị từ chối ────────
+  await createNotification({
+    type: 'cancel_rejected',
+    title: `Yêu cầu hủy đơn #${order._id.toString().slice(-6).toUpperCase()} đã bị từ chối`,
+    message: reason ? `Lý do: ${reason}` : 'Đơn hàng của bạn vẫn đang được xử lý bình thường.',
+    link: `/order/${order._id}`,
+    order: order._id,
+    user: order.user,
+  })
+
+  res.json(updatedOrder)
+})
+
+// ═══════════════ A5: Hoàn tiền khi giao hàng thất bại ═══════════════
+
+// @desc    Khách gửi yêu cầu hoàn tiền (đơn đã thanh toán nhưng giao thất bại/hoàn hàng)
+// @route   PUT /api/orders/:id/refund-request
+// @access  Private
+const requestRefund = asyncHandler(async (req, res) => {
+  const { bankName, accountNumber, accountHolder, reason } = req.body
+
+  const order = await Order.findById(req.params.id)
+  if (!order) { res.status(404); throw new Error('Không tìm thấy đơn hàng') }
+  if (order.user.toString() !== req.user._id.toString()) {
+    res.status(401); throw new Error('Không có quyền')
+  }
+  if (!order.isPaid) {
+    res.status(400); throw new Error('Đơn hàng chưa thanh toán, không thể yêu cầu hoàn tiền')
+  }
+  if (!['delivery_failed', 'returned'].includes(order.status)) {
+    res.status(400)
+    throw new Error('Chỉ có thể yêu cầu hoàn tiền khi giao hàng thất bại hoặc hàng đã hoàn về kho')
+  }
+  if (order.refundStatus === 'requested' || order.refundStatus === 'completed') {
+    res.status(400); throw new Error('Đơn hàng đã có yêu cầu hoàn tiền trước đó')
+  }
+  if (!bankName || !accountNumber || !accountHolder) {
+    res.status(400); throw new Error('Vui lòng nhập đầy đủ thông tin tài khoản ngân hàng')
+  }
+
+  order.refundStatus = 'requested'
+  order.refundRequestedAt = new Date()
+  order.refundReason = reason || ''
+  order.refundBankInfo = { bankName, accountNumber, accountHolder }
+  const updatedOrder = await order.save()
+
+  // ── Thông báo cho Admin ─────────────────────────────────────
+  await createNotification({
+    type: 'refund_request',
+    title: `Yêu cầu hoàn tiền đơn #${order._id.toString().slice(-6).toUpperCase()}`,
+    message: `Số tiền: ${Number(order.totalPrice).toLocaleString('vi-VN')}đ — STK: ${accountNumber} (${bankName})`,
+    link: `/order/${order._id}`,
+    order: order._id,
+  })
+
+  res.json(updatedOrder)
+})
+
+// @desc    Admin đánh dấu đã hoàn tiền cho khách
+// @route   PUT /api/orders/:id/refund-complete
+// @access  Private/Admin
+const completeRefund = asyncHandler(async (req, res) => {
+  const { refundAmount, note } = req.body
+
+  const order = await Order.findById(req.params.id)
+  if (!order) { res.status(404); throw new Error('Không tìm thấy đơn hàng') }
+  if (order.refundStatus !== 'requested') {
+    res.status(400); throw new Error('Đơn hàng không có yêu cầu hoàn tiền đang chờ xử lý')
+  }
+
+  order.refundStatus = 'completed'
+  order.refundAmount = Number(refundAmount) || order.totalPrice
+  order.refundAt = new Date()
+  order.refundNote = note || ''
+  const updatedOrder = await order.save()
+
+  // ── Gửi email xác nhận hoàn tiền cho khách ──────────────────
+  try {
+    const gmailUser = (process.env.GMAIL_USER || '').trim()
+    const gmailAppPassword = (process.env.GMAIL_APP_PASSWORD || '').replace(/\s+/g, '')
+    if (gmailUser && gmailAppPassword) {
+      const populatedOrder = await Order.findById(order._id).populate('user', 'name email')
+      const createTransporter = (await import('../config/emailConfig.js')).default
+      const transporter = createTransporter()
+      await transporter.sendMail({
+        from: `"HariShop" <${gmailUser}>`,
+        to: populatedOrder.user.email,
+        subject: `HariShop - Xác nhận hoàn tiền đơn hàng #${order._id.toString().slice(-6).toUpperCase()}`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #33FFCC;">Chào ${populatedOrder.user.name},</h2>
+            <p>HariShop xác nhận đã hoàn tiền cho đơn hàng <strong>#${order._id.toString().slice(-6).toUpperCase()}</strong> của bạn.</p>
+            <div style="background: #1a1a2e; color: #33FFCC; padding: 16px 20px; border-radius: 12px;
+                        font-size: 20px; font-weight: bold; margin: 16px 0;">
+              Số tiền hoàn: ${order.refundAmount.toLocaleString('vi-VN')}đ
+            </div>
+            <p><strong>Thời gian hoàn tiền:</strong> ${order.refundAt.toLocaleString('vi-VN')}</p>
+            <p>Số tiền sẽ được chuyển vào tài khoản ngân hàng bạn đã cung cấp trong vòng 1-3 ngày làm việc (tuỳ ngân hàng).</p>
+            ${note ? `<p><strong>Ghi chú:</strong> ${note}</p>` : ''}
+            <hr style="border: none; border-top: 1px solid #333; margin: 24px 0;">
+            <p style="color: #666; font-size: 12px;">Trân trọng,<br>HariShop Team</p>
+          </div>
+        `,
+      })
+    }
+  } catch (e) {
+    console.warn('⚠️ Không gửi được email xác nhận hoàn tiền (non-fatal):', e.message)
+  }
+
+  // ── MỚI: thông báo cho KHÁCH HÀNG đã hoàn tiền ─────────────────
+  await createNotification({
+    type: 'refund_completed',
+    title: `Đơn #${order._id.toString().slice(-6).toUpperCase()} đã được hoàn tiền`,
+    message: `Số tiền: ${order.refundAmount.toLocaleString('vi-VN')}đ`,
+    link: `/order/${order._id}`,
+    order: order._id,
+    user: order.user,
+  })
+
   res.json(updatedOrder)
 })
 
@@ -629,7 +850,157 @@ const sepayWebhook = async (req, res) => {
   }
 }
 
-// Admin: revenue summary
+// ═══════════════ A4: Thống kê doanh thu nâng cao ═══════════════
+// @desc    Thống kê doanh thu chi tiết theo tháng/quý/năm/tùy chọn
+// @route   GET /api/orders/admin/analytics/revenue
+// @access  Private/Admin
+const getRevenueAnalytics = asyncHandler(async (req, res) => {
+  const { period = 'month', month, year, quarter, startDate, endDate } = req.query
+  const now = new Date()
+  const y = year ? Number(year) : now.getFullYear()
+
+  let start, end, prevStart, prevEnd, label, prevLabel
+
+  if (period === 'custom' && startDate && endDate) {
+    start = new Date(startDate); start.setHours(0, 0, 0, 0)
+    end = new Date(endDate); end.setHours(23, 59, 59, 999)
+    const durationMs = end.getTime() - start.getTime()
+    prevEnd = new Date(start.getTime() - 1)
+    prevStart = new Date(prevEnd.getTime() - durationMs)
+    label = `${startDate} → ${endDate}`
+    prevLabel = 'Kỳ liền trước'
+  } else if (period === 'year') {
+    start = new Date(y, 0, 1)
+    end = new Date(y, 11, 31, 23, 59, 59, 999)
+    prevStart = new Date(y - 1, 0, 1)
+    prevEnd = new Date(y - 1, 11, 31, 23, 59, 59, 999)
+    label = `Năm ${y}`
+    prevLabel = `Năm ${y - 1}`
+  } else if (period === 'quarter') {
+    const q = quarter ? Number(quarter) : Math.floor(now.getMonth() / 3) + 1
+    const startMonth = (q - 1) * 3
+    start = new Date(y, startMonth, 1)
+    end = new Date(y, startMonth + 3, 0, 23, 59, 59, 999)
+    const prevQ = q === 1 ? 4 : q - 1
+    const prevY = q === 1 ? y - 1 : y
+    const prevStartMonth = (prevQ - 1) * 3
+    prevStart = new Date(prevY, prevStartMonth, 1)
+    prevEnd = new Date(prevY, prevStartMonth + 3, 0, 23, 59, 59, 999)
+    label = `Quý ${q}/${y}`
+    prevLabel = `Quý ${prevQ}/${prevY}`
+  } else {
+    // 'month' (mặc định)
+    const m = month ? Number(month) - 1 : now.getMonth()
+    start = new Date(y, m, 1)
+    end = new Date(y, m + 1, 0, 23, 59, 59, 999)
+    const prevM = m === 0 ? 11 : m - 1
+    const prevY = m === 0 ? y - 1 : y
+    prevStart = new Date(prevY, prevM, 1)
+    prevEnd = new Date(prevY, prevM + 1, 0, 23, 59, 59, 999)
+    label = `Tháng ${m + 1}/${y}`
+    prevLabel = `Tháng ${prevM + 1}/${prevY}`
+  }
+
+  // "Thành công" = status delivered — dùng chung hằng số DELIVERED_MATCH
+  const deliveredMatch = DELIVERED_MATCH
+
+  // 1) Doanh thu theo từng ngày trong kỳ hiện tại (chỉ tính đơn delivered)
+  const dailyAgg = await Order.aggregate([
+    { $match: { ...deliveredMatch, deliveredAt: { $gte: start, $lte: end } } },
+    {
+      $group: {
+        _id: { $dateToString: { format: '%Y-%m-%d', date: '$deliveredAt' } },
+        revenue: { $sum: '$totalPrice' },
+        orders: { $sum: 1 },
+      },
+    },
+    { $sort: { _id: 1 } },
+  ])
+  const dailyRevenue = dailyAgg.map((d) => ({ date: d._id, revenue: d.revenue, orders: d.orders }))
+
+  // 2) So sánh doanh thu kỳ này vs kỳ trước
+  const [currentAgg] = await Order.aggregate([
+    { $match: { ...deliveredMatch, deliveredAt: { $gte: start, $lte: end } } },
+    { $group: { _id: null, total: { $sum: '$totalPrice' }, count: { $sum: 1 } } },
+  ])
+  const [prevAgg] = await Order.aggregate([
+    { $match: { ...deliveredMatch, deliveredAt: { $gte: prevStart, $lte: prevEnd } } },
+    { $group: { _id: null, total: { $sum: '$totalPrice' }, count: { $sum: 1 } } },
+  ])
+
+  // 3) Thẻ thống kê nhanh — tính trên toàn bộ đơn ĐƯỢC TẠO trong kỳ
+  //    (không chỉ delivered) để ra tỷ lệ thành công / tỷ lệ hủy chính xác
+  const allOrdersInPeriod = await Order.find({ createdAt: { $gte: start, $lte: end } })
+    .select('status isDelivered isCancelled totalPrice')
+    .lean()
+
+  const totalOrders = allOrdersInPeriod.length
+  const successOrders = allOrdersInPeriod.filter(
+    (o) => o.status === 'delivered' || (!o.status && o.isDelivered)
+  ).length
+  const cancelledOrders = allOrdersInPeriod.filter(
+    (o) => o.status === 'cancelled' || (!o.status && o.isCancelled)
+  ).length
+
+  const successRate = totalOrders > 0 ? (successOrders / totalOrders) * 100 : 0
+  const cancelRate = totalOrders > 0 ? (cancelledOrders / totalOrders) * 100 : 0
+
+  // 4) Top 5 sản phẩm bán chạy nhất theo doanh thu (chỉ tính đơn delivered)
+  const deliveredOrders = await Order.find({
+    ...deliveredMatch,
+    deliveredAt: { $gte: start, $lte: end },
+  }).select('orderItems').lean()
+
+  const productMap = new Map()
+  for (const o of deliveredOrders) {
+    for (const it of o.orderItems || []) {
+      const pid = it.product ? String(it.product) : it.name
+      const existing = productMap.get(pid) || {
+        productId: it.product ? String(it.product) : null,
+        name: it.name,
+        image: it.image,
+        qty: 0,
+        revenue: 0,
+      }
+      existing.qty += Number(it.qty) || 0
+      existing.revenue += (Number(it.price) || 0) * (Number(it.qty) || 0)
+      productMap.set(pid, existing)
+    }
+  }
+  const topProducts = [...productMap.values()]
+    .sort((a, b) => b.revenue - a.revenue)
+    .slice(0, 5)
+
+  res.json({
+    period,
+    label,
+    dailyRevenue,
+    comparison: {
+      current:  { label,     total: currentAgg?.total || 0, count: currentAgg?.count || 0 },
+      previous: { label: prevLabel, total: prevAgg?.total || 0, count: prevAgg?.count || 0 },
+    },
+    stats: {
+      totalRevenue: currentAgg?.total || 0,
+      successOrders,
+      totalOrders,
+      cancelledOrders,
+      successRate: Math.round(successRate * 10) / 10,
+      cancelRate: Math.round(cancelRate * 10) / 10,
+    },
+    topProducts,
+  })
+})
+
+// "Thành công" = status delivered — fallback isDelivered cho đơn cũ chưa có field status
+// Dùng chung cho revenue-summary, brand-breakdown và analytics/revenue
+const DELIVERED_MATCH = {
+  $or: [
+    { status: 'delivered' },
+    { status: { $exists: false }, isDelivered: true },
+  ],
+}
+
+// Admin: revenue summary — CHỈ tính đơn hàng đã giao thành công (status = delivered)
 const getAdminRevenueSummary = asyncHandler(async (req, res) => {
   const months = Number(req.query.months || 1)
   const safeMonths = !isNaN(months) && months > 0 ? months : 1
@@ -638,7 +1009,7 @@ const getAdminRevenueSummary = asyncHandler(async (req, res) => {
   fromDate.setMonth(fromDate.getMonth() - safeMonths)
 
   const [agg] = await Order.aggregate([
-    { $match: { isPaid: true, paidAt: { $gte: fromDate } } },
+    { $match: { ...DELIVERED_MATCH, deliveredAt: { $gte: fromDate } } },
     { $group: { _id: null, totalRevenue: { $sum: '$totalPrice' }, paidCount: { $sum: 1 } } },
   ])
 
@@ -666,7 +1037,7 @@ const getAdminBrandBreakdown = asyncHandler(async (req, res) => {
   const buckets = { apple: 0, samsung: 0, xiaomi: 0, oppo: 0, realme: 0, khác: 0 }
 
   const orders = await Order.find({
-    isPaid: true, paidAt: { $gte: fromDate },
+    ...DELIVERED_MATCH, deliveredAt: { $gte: fromDate },
   }).select('orderItems')
 
   const productIds = []
@@ -758,8 +1129,11 @@ export {
   cancelOrderRequest,
   approveCancelOrder,
   rejectCancelOrder,
+  requestRefund,
+  completeRefund,
   sepayWebhook,
   getAdminRevenueSummary,
   getAdminBrandBreakdown,
+  getRevenueAnalytics,
   deleteOrderByAdmin,
 }

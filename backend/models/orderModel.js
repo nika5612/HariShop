@@ -118,6 +118,23 @@ const orderSchema = mongoose.Schema(
         changedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
       },
     ],
+
+    // ── MỚI (A5): Hoàn tiền khi giao hàng thất bại ──────────────────
+    refundStatus: {
+      type: String,
+      enum: ['none', 'requested', 'completed', 'rejected'],
+      default: 'none',
+    },
+    refundAmount:      { type: Number, default: 0 },
+    refundAt:          { type: Date },
+    refundNote:        { type: String, default: '' },      // ghi chú của Admin khi xử lý
+    refundRequestedAt: { type: Date },
+    refundReason:      { type: String, default: '' },      // lý do khách nêu khi yêu cầu
+    refundBankInfo: {
+      bankName:      { type: String, default: '' },
+      accountNumber: { type: String, default: '' },
+      accountHolder: { type: String, default: '' },
+    },
   },
   { timestamps: true }
 )

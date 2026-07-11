@@ -9,6 +9,7 @@ import { updateUserProfile } from '../actions/userActions'
 import { getUserProfile } from '../actions/userProfileActions'
 import { listMyOrders } from '../actions/orderActions'
 import { USER_UPDATE_PROFILE_RESET } from '../constants/userConstants'
+import { getOrderStatusInfo } from '../constants/orderStatusConfig'
 
 const inputStyle = {
   background: '#0f0f23',
@@ -37,12 +38,9 @@ const sectionStyle = {
   marginBottom: '20px',
 }
 
-const STATUS_LABEL = (order) => {
-  if (order.isCancelled) return { label: 'Đã hủy', color: '#ff6b6b', icon: 'fas fa-times-circle' }
-  if (order.cancelRequest?.requested) return { label: 'Chờ duyệt hủy', color: '#ffd166', icon: 'fas fa-hourglass-half' }
-  if (order.isDelivered) return { label: 'Đã giao', color: '#4cdb80', icon: 'fas fa-check-circle' }
-  return { label: 'Đang giao', color: '#ffd166', icon: 'fas fa-truck' }
-}
+// STATUS_LABEL cục bộ đã được thay bằng getOrderStatusInfo() dùng chung
+// từ '../constants/orderStatusConfig' — hiển thị đủ 12 trạng thái chi tiết
+// thay vì chỉ gộp chung "Đang giao".
 
 const ProfileScreen = ({ history }) => {
   const [name, setName] = useState('')
@@ -215,7 +213,7 @@ const ProfileScreen = ({ history }) => {
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 {recentOrders.map((order) => {
-                  const statusCfg = STATUS_LABEL(order)
+                  const statusCfg = getOrderStatusInfo(order)
                   return (
                     <div key={order._id} style={{
                       background: 'rgba(255,255,255,0.03)',

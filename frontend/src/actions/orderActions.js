@@ -37,6 +37,12 @@ import {
   ORDER_UPDATE_STATUS_REQUEST,
   ORDER_UPDATE_STATUS_SUCCESS,
   ORDER_UPDATE_STATUS_FAIL,
+  ORDER_REFUND_REQUEST_REQUEST,
+  ORDER_REFUND_REQUEST_SUCCESS,
+  ORDER_REFUND_REQUEST_FAIL,
+  ORDER_REFUND_COMPLETE_REQUEST,
+  ORDER_REFUND_COMPLETE_SUCCESS,
+  ORDER_REFUND_COMPLETE_FAIL,
 } from '../constants/orderConstants'
 
 
@@ -192,6 +198,58 @@ export const updateOrderStatus = (orderId, status, note = '') => async (dispatch
     const message = getErrorMessage(error)
     if (message === 'Not authorized, token failed') dispatch(logout())
     dispatch({ type: ORDER_UPDATE_STATUS_FAIL, payload: message })
+  }
+}
+
+// ✅ A5: Khách gửi yêu cầu hoàn tiền
+export const requestRefund = (orderId, bankInfo) => async (dispatch, getState) => {
+  try {
+    dispatch({ type: ORDER_REFUND_REQUEST_REQUEST })
+
+    const { userLogin: { userInfo } } = getState()
+    const config = {
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${userInfo.token}`,
+      },
+    }
+
+    const { data } = await axios.put(`/api/orders/${orderId}/refund-request`, bankInfo, config)
+
+    dispatch({ type: ORDER_REFUND_REQUEST_SUCCESS, payload: data })
+    dispatch({ type: ORDER_DETAILS_SUCCESS, payload: data })
+  } catch (error) {
+    const message = getErrorMessage(error)
+    if (message === 'Not authorized, token failed') dispatch(logout())
+    dispatch({ type: ORDER_REFUND_REQUEST_FAIL, payload: message })
+  }
+}
+
+// ✅ A5: Admin đánh dấu đã hoàn tiền
+export const completeRefund = (orderId, refundAmount, note) => async (dispatch, getState) => {
+  try {
+    dispatch({ type: ORDER_REFUND_COMPLETE_REQUEST })
+
+    const { userLogin: { userInfo } } = getState()
+    const config = {
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${userInfo.token}`,
+      },
+    }
+
+    const { data } = await axios.put(
+      `/api/orders/${orderId}/refund-complete`,
+      { refundAmount, note },
+      config
+    )
+
+    dispatch({ type: ORDER_REFUND_COMPLETE_SUCCESS, payload: data })
+    dispatch({ type: ORDER_DETAILS_SUCCESS, payload: data })
+  } catch (error) {
+    const message = getErrorMessage(error)
+    if (message === 'Not authorized, token failed') dispatch(logout())
+    dispatch({ type: ORDER_REFUND_COMPLETE_FAIL, payload: message })
   }
 }
 

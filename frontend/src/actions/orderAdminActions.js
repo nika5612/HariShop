@@ -10,6 +10,9 @@ import {
   ORDER_ADMIN_DELETE_REQUEST,
   ORDER_ADMIN_DELETE_SUCCESS,
   ORDER_ADMIN_DELETE_FAIL,
+  REVENUE_ANALYTICS_REQUEST,
+  REVENUE_ANALYTICS_SUCCESS,
+  REVENUE_ANALYTICS_FAIL,
 } from '../constants/orderConstants'
 
 
@@ -64,6 +67,34 @@ export const getAdminBrandBreakdown = (months = 1) => async (dispatch, getState)
   }
 }
 
+// ✅ A4: Thống kê doanh thu nâng cao — params: { period, month, year, quarter, startDate, endDate }
+export const getRevenueAnalytics = (params = {}) => async (dispatch, getState) => {
+  try {
+    dispatch({ type: REVENUE_ANALYTICS_REQUEST })
+
+    const { userLogin: { userInfo } } = getState()
+
+    const config = {
+      headers: { Authorization: `Bearer ${userInfo.token}` },
+    }
+
+    const query = new URLSearchParams(
+      Object.entries(params).reduce((acc, [k, v]) => {
+        if (v !== undefined && v !== null && v !== '') acc[k] = v
+        return acc
+      }, {})
+    ).toString()
+
+    const { data } = await axios.get(`/api/orders/admin/analytics/revenue?${query}`, config)
+
+    dispatch({ type: REVENUE_ANALYTICS_SUCCESS, payload: data })
+  } catch (error) {
+    const message = getErrorMessage(error)
+    if (message === 'Not authorized, token failed') dispatch(logout())
+    dispatch({ type: REVENUE_ANALYTICS_FAIL, payload: message })
+  }
+}
+
 export const deleteOrderByAdmin = (orderId) => async (dispatch, getState) => {
   try {
     dispatch({ type: ORDER_ADMIN_DELETE_REQUEST })
@@ -83,5 +114,3 @@ export const deleteOrderByAdmin = (orderId) => async (dispatch, getState) => {
     dispatch({ type: ORDER_ADMIN_DELETE_FAIL, payload: message })
   }
 }
-
-

@@ -47,9 +47,13 @@ import {
   orderTrackReducer,
   orderAdminRevenueReducer,
   orderAdminBrandReducer,
+  revenueAnalyticsReducer,
   orderAdminDeleteReducer,
   orderUpdateStatusReducer,
+  orderRefundRequestReducer,
+  orderRefundCompleteReducer,
 } from './reducers/orderReducers'
+import { notificationReducer, myNotificationReducer } from './reducers/notificationReducers'
 
 // VOUCHER (ADMIN)
 import {
@@ -91,6 +95,10 @@ const reducer = combineReducers({
   orderPay: orderPayReducer,
   orderDeliver: orderDeliverReducer,
   orderUpdateStatus: orderUpdateStatusReducer,
+  orderRefundRequest: orderRefundRequestReducer,
+  orderRefundComplete: orderRefundCompleteReducer,
+  notification: notificationReducer,
+  myNotification: myNotificationReducer,
   orderListMy: orderListMyReducer,
   orderList: orderListReducer,
   orderCancelRequest: orderCancelRequestReducer,
@@ -101,6 +109,7 @@ const reducer = combineReducers({
   // ADMIN DASHBOARD
   orderAdminRevenue: orderAdminRevenueReducer,
   orderAdminBrand: orderAdminBrandReducer,
+  revenueAnalytics: revenueAnalyticsReducer,
   orderAdminDelete: orderAdminDeleteReducer,
 
   // VOUCHER (ADMIN)
