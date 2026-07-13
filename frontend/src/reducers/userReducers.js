@@ -17,6 +17,10 @@ import {
   USER_UPDATE_PROFILE_FAIL,
   USER_UPDATE_PROFILE_REQUEST,
   USER_UPDATE_PROFILE_SUCCESS,
+  USER_UNLOCK_COD_REQUEST,
+  USER_UNLOCK_COD_SUCCESS,
+  USER_UNLOCK_COD_FAIL,
+  USER_UNLOCK_COD_RESET,
   USER_DELETE_REQUEST,
   USER_DELETE_SUCCESS,
   USER_DELETE_FAIL,
@@ -207,6 +211,22 @@ export const userProfileReducer = (state = { user: {} }, action) => {
       return { loading: false, error: action.payload }
     case USER_PROFILE_RESET:
       return { user: {} }
+    default:
+      return state
+  }
+}
+
+// ===== B1: Admin mở khóa COD thủ công =====
+export const userUnlockCodReducer = (state = {}, action) => {
+  switch (action.type) {
+    case USER_UNLOCK_COD_REQUEST:
+      return { loading: true }
+    case USER_UNLOCK_COD_SUCCESS:
+      return { loading: false, success: true, result: action.payload }
+    case USER_UNLOCK_COD_FAIL:
+      return { loading: false, error: action.payload }
+    case USER_UNLOCK_COD_RESET:
+      return {}
     default:
       return state
   }

@@ -4,6 +4,7 @@ import {
   addOrderItems,
   getOrderById,
   updateOrderToPaid,
+  updateCodPaymentStatus,
   updateOrderToDelivered,
   updateOrderStatus,
   getMyOrders,
@@ -26,6 +27,8 @@ router.route('/sepay-webhook').post(sepayWebhook)
 
 router.route('/:id').get(protect, getOrderById)
 router.route('/:id/pay').put(protect, admin, updateOrderToPaid)
+// MỚI: Admin đánh dấu đã thu/chưa thu tiền cho đơn COD
+router.route('/:id/cod-payment').put(protect, admin, updateCodPaymentStatus)
 router.route('/:id/deliver').put(protect, admin, updateOrderToDelivered)
 router.route('/:id/status').put(protect, admin, updateOrderStatus)
 router.route('/:id/track').get(protect, trackOrder)

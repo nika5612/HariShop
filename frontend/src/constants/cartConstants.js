@@ -9,3 +9,7 @@ export const CART_SAVE_SHOP_MESSAGE = 'CART_SAVE_SHOP_MESSAGE'
 export const CART_SAVE_DELIVERY_FEE = 'CART_SAVE_DELIVERY_FEE'
 export const CART_SAVE_VOUCHER_DISCOUNT = 'CART_SAVE_VOUCHER_DISCOUNT'
 export const CART_SAVE_DELIVERY_PROVIDER = 'CART_SAVE_DELIVERY_PROVIDER'
+
+// MỚI (B8): đồng bộ lại giá giỏ hàng theo giá hiện tại của sản phẩm
+// (vd Flash Sale đã hết hạn → tự trả về giá gốc)
+export const CART_SYNC_PRICES = 'CART_SYNC_PRICES'

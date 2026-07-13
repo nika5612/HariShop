@@ -23,6 +23,19 @@ import {
   PRODUCT_TOP_REQUEST,
   PRODUCT_TOP_SUCCESS,
   PRODUCT_TOP_FAIL,
+  PRODUCT_NL_SEARCH_REQUEST,
+  PRODUCT_NL_SEARCH_SUCCESS,
+  PRODUCT_NL_SEARCH_FAIL,
+  PRODUCT_NL_SEARCH_RESET,
+  PRODUCT_RELATED_REQUEST,
+  PRODUCT_RELATED_SUCCESS,
+  PRODUCT_RELATED_FAIL,
+  PRODUCT_PERSONALIZED_REQUEST,
+  PRODUCT_PERSONALIZED_SUCCESS,
+  PRODUCT_PERSONALIZED_FAIL,
+  PRODUCT_REVIEW_SUMMARY_REQUEST,
+  PRODUCT_REVIEW_SUMMARY_SUCCESS,
+  PRODUCT_REVIEW_SUMMARY_FAIL,
 } from '../constants/productConstants'
 
 export const productListReducer = (state = { products: [] }, action) => {
@@ -143,3 +156,68 @@ export const productDeleteReviewReducer = (state = {}, action) => {
   }
 }
 
+// ===== B3: Tìm kiếm bằng ngôn ngữ tự nhiên =====
+export const productNLSearchReducer = (state = { products: [], understood: [] }, action) => {
+  switch (action.type) {
+    case PRODUCT_NL_SEARCH_REQUEST:
+      return { loading: true, products: [], understood: [] }
+    case PRODUCT_NL_SEARCH_SUCCESS:
+      return {
+        loading: false,
+        products: action.payload.products,
+        understood: action.payload.understood,
+        filters: action.payload.filters,
+        query: action.payload.query,
+        page: action.payload.page,
+        pages: action.payload.pages,
+        totalCount: action.payload.totalCount,
+      }
+    case PRODUCT_NL_SEARCH_FAIL:
+      return { loading: false, error: action.payload, products: [], understood: [] }
+    case PRODUCT_NL_SEARCH_RESET:
+      return { products: [], understood: [] }
+    default:
+      return state
+  }
+}
+
+// ===== B4: Gợi ý sản phẩm thông minh =====
+export const productRelatedReducer = (state = { similar: [], frequentlyBoughtTogether: [] }, action) => {
+  switch (action.type) {
+    case PRODUCT_RELATED_REQUEST:
+      return { loading: true, similar: [], frequentlyBoughtTogether: [] }
+    case PRODUCT_RELATED_SUCCESS:
+      return { loading: false, similar: action.payload.similar, frequentlyBoughtTogether: action.payload.frequentlyBoughtTogether }
+    case PRODUCT_RELATED_FAIL:
+      return { loading: false, error: action.payload, similar: [], frequentlyBoughtTogether: [] }
+    default:
+      return state
+  }
+}
+
+export const productPersonalizedReducer = (state = { products: [] }, action) => {
+  switch (action.type) {
+    case PRODUCT_PERSONALIZED_REQUEST:
+      return { loading: true, products: [] }
+    case PRODUCT_PERSONALIZED_SUCCESS:
+      return { loading: false, products: action.payload.products }
+    case PRODUCT_PERSONALIZED_FAIL:
+      return { loading: false, error: action.payload, products: [] }
+    default:
+      return state
+  }
+}
+
+// ===== B5: Tóm tắt & phân tích đánh giá bằng AI =====
+export const productReviewSummaryReducer = (state = {}, action) => {
+  switch (action.type) {
+    case PRODUCT_REVIEW_SUMMARY_REQUEST:
+      return { loading: true }
+    case PRODUCT_REVIEW_SUMMARY_SUCCESS:
+      return { loading: false, ...action.payload }
+    case PRODUCT_REVIEW_SUMMARY_FAIL:
+      return { loading: false, error: action.payload, available: false }
+    default:
+      return state
+  }
+}

@@ -76,6 +76,12 @@ const userSchema = mongoose.Schema(
     addresses: [addressSchema],
     resetPasswordToken: { type: String },
     resetPasswordExpire: { type: Date },
+
+    // ===== B1: Hạn chế COD với tài khoản giao hàng thất bại =====
+    codFailCount: { type: Number, default: 0 },
+    codRestricted: { type: Boolean, default: false },
+    codRestrictedAt: { type: Date },
+    codUnlockedAt: { type: Date },
   },
   {
     timestamps: true,

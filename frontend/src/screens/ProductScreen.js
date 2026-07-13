@@ -13,6 +13,9 @@ import {
 } from '../actions/productActions'
 import { PRODUCT_CREATE_REVIEW_RESET } from '../constants/productConstants'
 import { addToCart } from '../actions/cartActions'
+import RelatedProducts from '../components/RelatedProducts'
+import ReviewSummary from '../components/ReviewSummary'
+import CountdownTimer from '../components/CountdownTimer'
 
 const ProductScreen = ({ history, match }) => {
   const [qty, setQty] = useState(1)
@@ -20,6 +23,8 @@ const ProductScreen = ({ history, match }) => {
   const [successAddToCart, setSuccessAddToCart] = useState(false)
   const [rating, setRating] = useState(0)
   const [comment, setComment] = useState('')
+  // MỚI (B8): khi đếm ngược về 0 ngay trên màn hình, ẩn giá giảm/badge NGAY LẬP TỨC
+  const [flashSaleExpired, setFlashSaleExpired] = useState(false)
   
   const colors = ['Đen', 'Trắng', 'Xanh dương', 'Bạc', 'Vàng', 'Đỏ']
 
@@ -37,6 +42,11 @@ const ProductScreen = ({ history, match }) => {
     loading: loadingProductReview,
     error: errorProductReview,
   } = productReviewCreate
+
+  // MỚI (B8): reset lại trạng thái "đã hết hạn hiển thị" khi chuyển sang xem sản phẩm khác
+  useEffect(() => {
+    setFlashSaleExpired(false)
+  }, [match.params.id])
 
   useEffect(() => {
     if (successProductReview) {
@@ -168,11 +178,28 @@ const ProductScreen = ({ history, match }) => {
 
                 <div style={{ borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '14px', marginBottom: '14px' }}>
                   <div style={{ color: '#b8bcc8', fontSize: '13px', marginBottom: '4px' }}>Giá bán</div>
-                  <span 
-                    style={{ color: '#33FFCC', fontSize: '1.4rem', fontWeight: '700', wordBreak: 'break-all' }}
-                  >
-                    {product.price?.toLocaleString('vi-VN')}đ
-                  </span>
+                  {product.isFlashSaleActive && !flashSaleExpired ? (
+                    <div>
+                      <span style={{ color: '#ff6b6b', fontSize: '1.4rem', fontWeight: '700', display: 'block', wordBreak: 'break-all' }}>
+                        {product.salePrice?.toLocaleString('vi-VN')}đ
+                      </span>
+                      <span style={{ color: '#6b7085', fontSize: '1rem', textDecoration: 'line-through', display: 'block', marginTop: '2px' }}>
+                        {product.price?.toLocaleString('vi-VN')}đ
+                      </span>
+                      <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                        <span style={{ background: '#ff6b6b', color: '#fff', fontWeight: '700', fontSize: '12px', padding: '3px 10px', borderRadius: '14px' }}>
+                          <i className='fas fa-bolt me-1'></i>FLASH SALE -{product.discountPercent}%
+                        </span>
+                        <CountdownTimer endsAt={product.flashSaleEndsAt} size='lg' onExpire={() => setFlashSaleExpired(true)} />
+                      </div>
+                    </div>
+                  ) : (
+                    <span 
+                      style={{ color: '#33FFCC', fontSize: '1.4rem', fontWeight: '700', wordBreak: 'break-all' }}
+                    >
+                      {product.price?.toLocaleString('vi-VN')}đ
+                    </span>
+                  )}
                 </div>
 
                 <div>
@@ -199,11 +226,25 @@ const ProductScreen = ({ history, match }) => {
                   marginBottom: '16px',
                 }}>
                   <div style={{ color: '#b8bcc8', fontSize: '12px' }}>Giá bán</div>
-                  <span 
-                    style={{ color: '#33FFCC', fontSize: '1.1rem', fontWeight: '700', marginTop: '4px', display: 'block', wordBreak: 'break-all' }}
-                  >
-                    {product.price?.toLocaleString('vi-VN')}đ
-                  </span>
+                  {product.isFlashSaleActive && !flashSaleExpired ? (
+                    <>
+                      <span style={{ color: '#ff6b6b', fontSize: '1.1rem', fontWeight: '700', marginTop: '4px', display: 'block', wordBreak: 'break-all' }}>
+                        {product.salePrice?.toLocaleString('vi-VN')}đ
+                      </span>
+                      <span style={{ color: '#6b7085', fontSize: '0.85rem', textDecoration: 'line-through', display: 'block', marginTop: '2px', fontWeight: '500' }}>
+                        {product.price?.toLocaleString('vi-VN')}đ
+                      </span>
+                      <div style={{ marginTop: '6px' }}>
+                        <CountdownTimer endsAt={product.flashSaleEndsAt} onExpire={() => setFlashSaleExpired(true)} />
+                      </div>
+                    </>
+                  ) : (
+                    <span 
+                      style={{ color: '#33FFCC', fontSize: '1.1rem', fontWeight: '700', marginTop: '4px', display: 'block', wordBreak: 'break-all' }}
+                    >
+                      {product.price?.toLocaleString('vi-VN')}đ
+                    </span>
+                  )}
                 </div>
 
                 {/* Trạng thái */}
@@ -420,7 +461,8 @@ const ProductScreen = ({ history, match }) => {
                   ['Bộ nhớ trong', product.specs.storage],
                   ['Màn hình', product.specs.screenSize],
                   ['Loại màn hình', product.specs.screenType],
-                  ['Camera', product.specs.camera],
+                  ['Camera sau', product.specs.camera],
+                  ['Camera trước', product.specs.cameraFront],
                   ['Pin', product.specs.battery ? `${product.specs.battery} mAh` : ''],
                   ['Hệ điều hành', product.specs.os],
                   ['SIM', product.specs.sim],
@@ -460,6 +502,9 @@ const ProductScreen = ({ history, match }) => {
             }}>
               <i className='fas fa-star me-2'></i>Đánh Giá Sản Phẩm
             </h3>
+
+            {/* MỚI (B5): AI tóm tắt & phân tích đánh giá */}
+            <ReviewSummary productId={product._id} />
 
             <Row>
               {/* Danh sách đánh giá */}
@@ -580,6 +625,9 @@ const ProductScreen = ({ history, match }) => {
               </Col>
             </Row>
           </div>
+
+          {/* MỚI (B4): Sản phẩm tương tự + Khách hàng thường mua cùng */}
+          <RelatedProducts productId={product._id} />
         </>
       )}
     </>

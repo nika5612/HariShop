@@ -8,6 +8,7 @@ import Loader from '../components/Loader'
 import TermsModal from '../components/TermsModal'
 
 import { createOrder } from '../actions/orderActions'
+import { getUserDetails } from '../actions/userActions'
 import { listAddresses } from '../actions/addressActions'
 import { ORDER_CREATE_RESET } from '../constants/orderConstants'
 import {
@@ -67,6 +68,11 @@ const CheckoutScreen = ({ history, location }) => {
   const userLogin = useSelector((state) => state.userLogin)
   const { userInfo } = userLogin
 
+  // ── MỚI (B1): kiểm tra tài khoản có đang bị hạn chế COD không (lấy dữ liệu mới nhất từ server) ──
+  const userDetails = useSelector((state) => state.userDetails)
+  const { user: profileUser } = userDetails
+  const codRestricted = !!profileUser?.codRestricted
+
   const address = useSelector((state) => state.address)
   const { addresses = [] } = address
 
@@ -103,6 +109,7 @@ const CheckoutScreen = ({ history, location }) => {
       return
     }
     dispatch(listAddresses())
+    dispatch(getUserDetails('profile')) // MỚI (B1): lấy trạng thái codRestricted mới nhất
     dispatch({ type: ORDER_CREATE_RESET })
 
     if (!isBuyNow) {
@@ -125,6 +132,13 @@ const CheckoutScreen = ({ history, location }) => {
       dispatch(listProductDetails(buyNowProductId))
     }
   }, [dispatch, userInfo, history, isBuyNow, buyNowProductId])
+
+  // ── MỚI (B1): nếu tài khoản đang bị hạn chế COD, tự động chuyển sang thanh toán online ──
+  useEffect(() => {
+    if (codRestricted && paymentMethod === 'cod') {
+      setPaymentMethod('online')
+    }
+  }, [codRestricted, paymentMethod])
 
   useEffect(() => {
     if (isBuyNow && buyNowProductId && !productLoading && buyNowProduct) {
@@ -349,7 +363,23 @@ const CheckoutScreen = ({ history, location }) => {
         </h2>
       </div>
 
-      {error && <Message variant='danger'>{error}</Message>}
+      {error && (
+        <Message variant='danger'>
+          {error}
+          {/* MỚI (B8): nếu lỗi do giá thay đổi (vd Flash Sale hết hạn) → gợi ý quay lại giỏ hàng để đồng bộ giá */}
+          {error.includes('Giá của') && error.includes('đã thay đổi') && (
+            <>
+              {' '}
+              <span
+                onClick={() => history.push('/cart')}
+                style={{ textDecoration: 'underline', cursor: 'pointer', color: '#33FFCC', fontWeight: '600' }}
+              >
+                Quay lại giỏ hàng
+              </span>
+            </>
+          )}
+        </Message>
+      )}
 
       <Row className='g-4'>
         <Col lg={8}>
@@ -609,20 +639,40 @@ const CheckoutScreen = ({ history, location }) => {
                 </span>
               )}
             </h5>
+            {/* ── MỚI (B1): banner cảnh báo khi tài khoản bị hạn chế COD ── */}
+            {codRestricted && (
+              <div style={{
+                background: 'rgba(255,107,107,0.08)',
+                border: '1px solid rgba(255,107,107,0.35)',
+                borderRadius: '10px',
+                padding: '14px 16px',
+                marginBottom: '12px',
+                color: '#ffb3b3',
+                fontSize: '13px',
+              }}>
+                <i className='fas fa-lock me-2' style={{ color: '#ff6b6b' }}></i>
+                Tài khoản của bạn tạm thời <strong>không thể thanh toán khi nhận hàng (COD)</strong> do có nhiều lần
+                giao hàng thất bại trước đó. Vui lòng chọn <strong>Chuyển khoản / QR Code</strong>. COD sẽ tự động
+                mở lại sau khi bạn nhận hàng thành công đơn tiếp theo.
+              </div>
+            )}
             {[
               { id: 'cod', label: 'Thanh toán khi nhận hàng (COD)', icon: 'fas fa-money-bill-wave' },
               { id: 'online', label: 'Chuyển khoản / QR Code', icon: 'fas fa-qrcode' },
-            ].map((opt) => (
+            ].map((opt) => {
+              const isDisabled = opt.id === 'cod' && codRestricted
+              return (
               <div key={opt.id}>
                 <div
-                  onClick={() => setPaymentMethod(opt.id)}
+                  onClick={() => !isDisabled && setPaymentMethod(opt.id)}
                   style={{
                     background: paymentMethod === opt.id ? 'rgba(51,255,204,0.1)' : 'rgba(255,255,255,0.03)',
                     border: `1px solid ${paymentMethod === opt.id ? '#33FFCC' : 'rgba(255,255,255,0.08)'}`,
                     borderRadius: '10px',
                     padding: '14px 16px',
                     marginBottom: '8px',
-                    cursor: 'pointer',
+                    cursor: isDisabled ? 'not-allowed' : 'pointer',
+                    opacity: isDisabled ? 0.45 : 1,
                     display: 'flex',
                     alignItems: 'center',
                     gap: '12px',
@@ -639,13 +689,16 @@ const CheckoutScreen = ({ history, location }) => {
                     }}
                   ></div>
                   <i
-                    className={opt.icon}
+                    className={isDisabled ? 'fas fa-lock' : opt.icon}
                     style={{
                       color: paymentMethod === opt.id ? '#33FFCC' : '#b8bcc8',
                       width: '20px',
                     }}
                   ></i>
                   <span style={{ color: '#ffffff', fontWeight: '600', fontSize: '14px' }}>{opt.label}</span>
+                  {isDisabled && (
+                    <span style={{ color: '#ff6b6b', fontSize: '12px', marginLeft: 'auto' }}>Tạm khóa</span>
+                  )}
                 </div>
 
                 {/* ── Thông báo QR sẽ hiện sau khi đặt hàng ── */}
@@ -666,7 +719,8 @@ const CheckoutScreen = ({ history, location }) => {
                   </div>
                 )}
               </div>
-            ))}
+              )
+            })}
           </div>
 
         </Col>

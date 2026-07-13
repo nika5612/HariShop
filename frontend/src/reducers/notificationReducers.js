@@ -11,6 +11,8 @@ import {
   MY_NOTIFICATION_UNREAD_COUNT_SUCCESS,
   MY_NOTIFICATION_MARK_READ_SUCCESS,
   MY_NOTIFICATION_MARK_ALL_READ_SUCCESS,
+  NOTIFICATION_SOCKET_NEW,
+  MY_NOTIFICATION_SOCKET_NEW,
 } from '../constants/notificationConstants'
 
 const initialState = { notifications: [], unreadCount: 0, loading: false, error: null }
@@ -43,6 +45,13 @@ export const notificationReducer = (state = initialState, action) => {
         ...state,
         unreadCount: 0,
         notifications: state.notifications.map((n) => ({ ...n, isRead: true })),
+      }
+    // MỚI (B9): thông báo mới đẩy tới real-time — thêm ngay vào đầu danh sách, tăng số chưa đọc
+    case NOTIFICATION_SOCKET_NEW:
+      return {
+        ...state,
+        unreadCount: state.unreadCount + 1,
+        notifications: [action.payload, ...state.notifications].slice(0, 100),
       }
     default:
       return state
@@ -78,6 +87,13 @@ export const myNotificationReducer = (state = initialState, action) => {
         ...state,
         unreadCount: 0,
         notifications: state.notifications.map((n) => ({ ...n, isRead: true })),
+      }
+    // MỚI (B9): thông báo mới đẩy tới real-time — thêm ngay vào đầu danh sách, tăng số chưa đọc
+    case MY_NOTIFICATION_SOCKET_NEW:
+      return {
+        ...state,
+        unreadCount: state.unreadCount + 1,
+        notifications: [action.payload, ...state.notifications].slice(0, 100),
       }
     default:
       return state

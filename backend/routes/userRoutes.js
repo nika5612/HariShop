@@ -18,6 +18,7 @@ import {
   getUserById,
   updateUser,
   getUserAddresses,
+  unlockCod,
 } from '../controllers/userController.js'
 
 import { protect, admin } from '../middleware/authMiddleware.js'
@@ -52,5 +53,8 @@ router
   .delete(protect, admin, deleteUser)
   .get(protect, admin, getUserById)
   .put(protect, admin, updateUser)
+
+
+router.put('/:id/unlock-cod', protect, admin, unlockCod)
 
 export default router

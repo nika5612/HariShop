@@ -53,7 +53,10 @@ const NotificationBell = ({ scope = 'admin' }) => {
   useEffect(() => {
     const fetchCount = () => dispatch(isAdmin ? fetchUnreadCount() : fetchMyUnreadCount())
     fetchCount()
-    const interval = setInterval(fetchCount, 30000)
+    // MỚI (B9): giờ đã có Socket.io đẩy thông báo real-time (xem SocketManager.js),
+    // interval này chỉ còn là LƯỚI AN TOÀN dự phòng (vd socket bị rớt mạng tạm thời) —
+    // giãn ra 60s thay vì 30s vì không còn là nguồn cập nhật chính.
+    const interval = setInterval(fetchCount, 60000)
     return () => clearInterval(interval)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scope])

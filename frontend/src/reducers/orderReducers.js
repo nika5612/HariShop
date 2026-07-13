@@ -10,6 +10,10 @@ import {
   ORDER_PAY_FAIL,
   ORDER_PAY_SUCCESS,
   ORDER_PAY_RESET,
+  ORDER_COD_PAYMENT_REQUEST,
+  ORDER_COD_PAYMENT_SUCCESS,
+  ORDER_COD_PAYMENT_FAIL,
+  ORDER_COD_PAYMENT_RESET,
   ORDER_LIST_MY_REQUEST,
   ORDER_LIST_MY_SUCCESS,
   ORDER_LIST_MY_FAIL,
@@ -110,6 +114,22 @@ export const orderPayReducer = (state = {}, action) => {
     case ORDER_PAY_FAIL:
       return { loading: false, error: action.payload }
     case ORDER_PAY_RESET:
+      return {}
+    default:
+      return state
+  }
+}
+
+// MỚI: Admin đánh dấu đã thu/chưa thu tiền cho đơn COD
+export const orderCodPaymentReducer = (state = {}, action) => {
+  switch (action.type) {
+    case ORDER_COD_PAYMENT_REQUEST:
+      return { loading: true }
+    case ORDER_COD_PAYMENT_SUCCESS:
+      return { loading: false, success: true }
+    case ORDER_COD_PAYMENT_FAIL:
+      return { loading: false, error: action.payload }
+    case ORDER_COD_PAYMENT_RESET:
       return {}
     default:
       return state

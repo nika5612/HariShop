@@ -10,6 +10,9 @@ import {
   ORDER_PAY_FAIL,
   ORDER_PAY_SUCCESS,
   ORDER_PAY_REQUEST,
+  ORDER_COD_PAYMENT_REQUEST,
+  ORDER_COD_PAYMENT_SUCCESS,
+  ORDER_COD_PAYMENT_FAIL,
   ORDER_LIST_MY_REQUEST,
   ORDER_LIST_MY_SUCCESS,
   ORDER_LIST_MY_FAIL,
@@ -149,6 +152,30 @@ export const payOrder = (orderId, paymentResult) => async (dispatch, getState) =
     const message = getErrorMessage(error)
     if (message === 'Not authorized, token failed') dispatch(logout())
     dispatch({ type: ORDER_PAY_FAIL, payload: message })
+  }
+}
+
+// MỚI: Admin đánh dấu đã thu/chưa thu tiền cho đơn COD
+export const updateCodPaymentStatus = (orderId, isPaid) => async (dispatch, getState) => {
+  try {
+    dispatch({ type: ORDER_COD_PAYMENT_REQUEST })
+
+    const { userLogin: { userInfo } } = getState()
+
+    const config = {
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${userInfo.token}`,
+      },
+    }
+
+    const { data } = await axios.put(`/api/orders/${orderId}/cod-payment`, { isPaid }, config)
+
+    dispatch({ type: ORDER_COD_PAYMENT_SUCCESS, payload: data })
+  } catch (error) {
+    const message = getErrorMessage(error)
+    if (message === 'Not authorized, token failed') dispatch(logout())
+    dispatch({ type: ORDER_COD_PAYMENT_FAIL, payload: message })
   }
 }
 

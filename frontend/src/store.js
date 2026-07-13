@@ -12,7 +12,14 @@ import {
   productReviewCreateReducer,
   productTopRatedReducer,
   productDeleteReviewReducer,
+  productNLSearchReducer,
+  productRelatedReducer,
+  productPersonalizedReducer,
+  productReviewSummaryReducer,
 } from './reducers/productReducers'
+
+// COMPARE (B7)
+import { compareReducer } from './reducers/compareReducers'
 
 // CART
 import { cartReducer } from './reducers/cartReducers'
@@ -31,6 +38,7 @@ import {
   userProfileReducer,
   userVerifyOtpReducer,
   userResendOtpReducer,
+  userUnlockCodReducer,
 } from './reducers/userReducers'
 
 // ORDER
@@ -38,6 +46,7 @@ import {
   orderCreateReducer,
   orderDetailsReducer,
   orderPayReducer,
+  orderCodPaymentReducer,
   orderDeliverReducer,
   orderListMyReducer,
   orderListReducer,
@@ -93,6 +102,7 @@ const reducer = combineReducers({
   orderCreate: orderCreateReducer,
   orderDetails: orderDetailsReducer,
   orderPay: orderPayReducer,
+  orderCodPayment: orderCodPaymentReducer,
   orderDeliver: orderDeliverReducer,
   orderUpdateStatus: orderUpdateStatusReducer,
   orderRefundRequest: orderRefundRequestReducer,
@@ -123,14 +133,20 @@ const reducer = combineReducers({
 
 
   productDeleteReview: productDeleteReviewReducer,
+  productNLSearch: productNLSearchReducer,
+  productRelated: productRelatedReducer,
+  productPersonalized: productPersonalizedReducer,
+  productReviewSummary: productReviewSummaryReducer,
   userForgotPassword: userForgotPasswordReducer,
   userResetPassword: userResetPasswordReducer,
   userProfile: userProfileReducer,
   userVerifyOtp: userVerifyOtpReducer,
   userResendOtp: userResendOtpReducer,
+  userUnlockCod: userUnlockCodReducer,
 
   shippingQuotes: shippingQuotesReducer,
   shippingTrack: shippingTrackReducer,
+  compare: compareReducer,
 })
 
 // ================= LOCAL STORAGE =================
@@ -143,6 +159,7 @@ const safeParseStorage = (key, defaultValue) => {
     }
     const parsed = JSON.parse(item)
     if (key === 'cartItems' && !Array.isArray(parsed)) return defaultValue
+    if (key === 'compareItems' && !Array.isArray(parsed)) return defaultValue
     if (key === 'userInfo' && typeof parsed !== 'object') return defaultValue
     if (key === 'shippingAddress' && typeof parsed !== 'object') return defaultValue
     return parsed
@@ -156,6 +173,7 @@ const safeParseStorage = (key, defaultValue) => {
 const cartItemsFromStorage = safeParseStorage('cartItems', [])
 const userInfoFromStorage = safeParseStorage('userInfo', null)
 const shippingAddressFromStorage = safeParseStorage('shippingAddress', {})
+const compareItemsFromStorage = safeParseStorage('compareItems', [])
 
 // ================= INITIAL STATE =================
 const initialState = {
@@ -170,6 +188,9 @@ const initialState = {
   },
   userLogin: {
     userInfo: userInfoFromStorage,
+  },
+  compare: {
+    compareItems: compareItemsFromStorage,
   },
 }
 

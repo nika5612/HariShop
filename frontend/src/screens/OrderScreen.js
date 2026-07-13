@@ -14,8 +14,10 @@ import {
   updateOrderStatus,
   requestRefund,
   completeRefund,
+  updateCodPaymentStatus,
 } from '../actions/orderActions'
 import { deleteOrderByAdmin } from '../actions/orderAdminActions'
+import { unlockCod } from '../actions/userActions'
 import ConfirmDeleteModal from '../components/ConfirmDeleteModal'
 
 import {
@@ -28,7 +30,9 @@ import {
   ORDER_UPDATE_STATUS_RESET,
   ORDER_REFUND_REQUEST_RESET,
   ORDER_REFUND_COMPLETE_RESET,
+  ORDER_COD_PAYMENT_RESET,
 } from '../constants/orderConstants'
+import { USER_UNLOCK_COD_RESET } from '../constants/userConstants'
 import {
   STATUS_STEPS,
   BRANCH_STATUSES,
@@ -580,6 +584,14 @@ const OrderScreen = ({ match, history }) => {
   const orderAdminDelete = useSelector((state) => state.orderAdminDelete)
   const { loading: loadingDelete, success: successDelete } = orderAdminDelete
 
+  // ── MỚI (B1): Admin mở khóa COD thủ công cho khách ──
+  const userUnlockCod = useSelector((state) => state.userUnlockCod)
+  const { loading: loadingUnlockCod, success: successUnlockCod, error: errorUnlockCod } = userUnlockCod
+
+  // MỚI: Admin đánh dấu đã thu/chưa thu tiền cho đơn COD
+  const orderCodPayment = useSelector((state) => state.orderCodPayment)
+  const { loading: loadingCodPayment, success: successCodPayment, error: errorCodPayment } = orderCodPayment
+
   const userLogin = useSelector((state) => state.userLogin)
   const { userInfo } = userLogin
 
@@ -633,6 +645,22 @@ const OrderScreen = ({ match, history }) => {
     successRefundReq, successRefundComplete,
   ])
 
+  // ── MỚI (B1): sau khi Admin mở khóa COD thành công, làm mới lại đơn hàng ──
+  useEffect(() => {
+    if (successUnlockCod) {
+      dispatch({ type: USER_UNLOCK_COD_RESET })
+      dispatch(getOrderDetails(orderId))
+    }
+  }, [dispatch, successUnlockCod, orderId])
+
+  // ── MỚI: sau khi Admin đổi trạng thái thanh toán COD thành công, làm mới lại đơn hàng ──
+  useEffect(() => {
+    if (successCodPayment) {
+      dispatch({ type: ORDER_COD_PAYMENT_RESET })
+      dispatch(getOrderDetails(orderId))
+    }
+  }, [dispatch, successCodPayment, orderId])
+
   const deliverHandler = () => {
     if (window.confirm('Xác nhận đã giao hàng?')) dispatch(deliverOrder(order))
   }
@@ -650,6 +678,24 @@ const OrderScreen = ({ match, history }) => {
 
   const rejectHandler = () => {
     if (window.confirm('Từ chối yêu cầu hủy đơn này?')) dispatch(rejectCancelOrder(orderId))
+  }
+
+  // ── MỚI (B1): Admin mở khóa COD thủ công cho khách hàng ──
+  const unlockCodHandler = () => {
+    if (order?.user?._id && window.confirm(`Mở khóa COD cho khách hàng "${order.user.name}"?`)) {
+      dispatch(unlockCod(order.user._id))
+    }
+  }
+
+  // ── MỚI: Admin đánh dấu đã thu/chưa thu tiền cho đơn COD ──
+  const toggleCodPaymentHandler = () => {
+    const nextIsPaid = !order.isPaid
+    const confirmMsg = nextIsPaid
+      ? 'Xác nhận Đã thu tiền mặt cho đơn hàng này?'
+      : 'Xác nhận đánh dấu đơn hàng này là CHƯA thu tiền?'
+    if (window.confirm(confirmMsg)) {
+      dispatch(updateCodPaymentStatus(orderId, nextIsPaid))
+    }
   }
 
   // ── MỚI (A5): khách gửi yêu cầu hoàn tiền ─────────────────────
@@ -807,7 +853,7 @@ const OrderScreen = ({ match, history }) => {
             <h5 style={{ color: '#33FFCC', fontWeight: '700', marginBottom: '16px' }}>
               <i className='fas fa-credit-card me-2'></i>Phương thức thanh toán
             </h5>
-            <div style={{ background: 'rgba(51,255,204,0.06)', borderRadius: '12px', padding: '14px 16px', border: '1px solid rgba(51,255,204,0.2)', display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{ background: 'rgba(51,255,204,0.06)', borderRadius: '12px', padding: '14px 16px', border: '1px solid rgba(51,255,204,0.2)', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
               <i className={PAYMENT_ICONS[order.paymentMethod] || 'fas fa-credit-card'} style={{ color: '#33FFCC', fontSize: '18px', width: '24px' }}></i>
               <span style={{ color: '#ffffff', fontWeight: '600' }}>{PAYMENT_LABELS[order.paymentMethod] || order.paymentMethod}</span>
               {order.shippingProvider && (
@@ -815,12 +861,35 @@ const OrderScreen = ({ match, history }) => {
                   qua {carrierLabel(order.shippingProvider)}
                 </span>
               )}
-              <div style={{ marginLeft: 'auto' }}>
+              <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '10px' }}>
                 {order.isPaid
                   ? <StatusBadge color='#4cdb80'><i className='fas fa-check'></i> Đã TT {order.paidAt?.substring(0, 10)}</StatusBadge>
                   : <StatusBadge color='#ffd166'><i className='fas fa-clock'></i> Chưa thanh toán</StatusBadge>}
+
+                {/* MỚI: Admin đánh dấu đã thu/chưa thu tiền — chỉ áp dụng cho đơn COD */}
+                {userInfo?.isAdmin && order.paymentMethod === 'cod' && (
+                  <button
+                    onClick={toggleCodPaymentHandler}
+                    disabled={loadingCodPayment}
+                    style={{
+                      background: 'transparent',
+                      border: `1px solid ${order.isPaid ? 'rgba(255,209,102,0.5)' : 'rgba(76,219,128,0.5)'}`,
+                      color: order.isPaid ? '#ffd166' : '#4cdb80',
+                      borderRadius: '8px', padding: '5px 12px', fontSize: '12.5px', fontWeight: '600',
+                      cursor: loadingCodPayment ? 'not-allowed' : 'pointer',
+                      opacity: loadingCodPayment ? 0.6 : 1, whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {loadingCodPayment
+                      ? <><i className='fas fa-spinner fa-spin me-1'></i>Đang lưu...</>
+                      : order.isPaid
+                        ? <><i className='fas fa-undo me-1'></i> Đánh dấu chưa thu tiền</>
+                        : <><i className='fas fa-hand-holding-usd me-1'></i> Đánh dấu đã thu tiền</>}
+                  </button>
+                )}
               </div>
             </div>
+            {errorCodPayment && <div style={{ marginTop: '10px' }}><Message variant='danger'>{errorCodPayment}</Message></div>}
           </div>
 
           {/* ✅ QR SEPAY ĐỘNG — chỉ hiện khi chọn online, chưa TT, có transferContent */}
@@ -909,6 +978,30 @@ const OrderScreen = ({ match, history }) => {
                   </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* ── MỚI (B1): HẠN CHẾ COD - Admin xem trạng thái & mở khóa thủ công ── */}
+          {userInfo?.isAdmin && order.user?.codRestricted && (
+            <div style={{ ...sectionStyle, border: '1px solid rgba(255,107,107,0.35)' }}>
+              <h5 style={{ color: '#ff6b6b', fontWeight: '700', marginBottom: '16px' }}>
+                <i className='fas fa-lock me-2'></i>Khách hàng đang bị hạn chế COD
+              </h5>
+              <p style={{ color: '#b8bcc8', fontSize: '14px', marginBottom: '12px' }}>
+                Khách hàng <strong style={{ color: '#fff' }}>{order.user?.name}</strong> hiện có{' '}
+                <strong style={{ color: '#ff6b6b' }}>{order.user?.codFailCount || 0}</strong> lần giao hàng thất bại
+                và đang bị <strong>tạm khóa quyền thanh toán COD</strong> cho các đơn hàng mới. Hệ thống sẽ tự động
+                mở lại khi khách nhận thành công đơn tiếp theo, hoặc bạn có thể mở khóa thủ công bên dưới nếu khách
+                đã giải trình hợp lý.
+              </p>
+              {errorUnlockCod && <Message variant='danger'>{errorUnlockCod}</Message>}
+              <button
+                onClick={unlockCodHandler}
+                disabled={loadingUnlockCod}
+                style={{ background: '#33FFCC', border: 'none', borderRadius: '8px', padding: '10px 20px', color: '#0f0f23', fontWeight: '700', fontSize: '14px', cursor: loadingUnlockCod ? 'not-allowed' : 'pointer', opacity: loadingUnlockCod ? 0.6 : 1 }}
+              >
+                <i className='fas fa-unlock me-2'></i>{loadingUnlockCod ? 'Đang mở khóa...' : 'Mở khóa COD'}
+              </button>
             </div>
           )}
 

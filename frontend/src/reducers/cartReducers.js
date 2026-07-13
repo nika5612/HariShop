@@ -10,6 +10,7 @@ import {
   CART_SAVE_DELIVERY_FEE,
   CART_SAVE_VOUCHER_DISCOUNT,
   CART_SAVE_DELIVERY_PROVIDER,
+  CART_SYNC_PRICES,
 } from '../constants/cartConstants'
 
 export const cartReducer = (
@@ -82,6 +83,10 @@ export const cartReducer = (
 
     case CART_CLEAR_ITEMS:
       return { ...state, cartItems: [] }
+
+    // MỚI (B8): đồng bộ giá các item trong giỏ theo giá hiện tại (vd Flash Sale hết hạn)
+    case CART_SYNC_PRICES:
+      return { ...state, cartItems: action.payload }
 
     // Xoá các item đã mua sau khi đặt hàng (hướng A)
     case 'CART_REMOVE_PURCHASED_ITEMS': {

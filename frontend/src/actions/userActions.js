@@ -18,6 +18,9 @@ import {
   USER_LIST_SUCCESS,
   USER_LIST_REQUEST,
   USER_LIST_RESET,
+  USER_UNLOCK_COD_REQUEST,
+  USER_UNLOCK_COD_SUCCESS,
+  USER_UNLOCK_COD_FAIL,
   USER_DELETE_REQUEST,
   USER_DELETE_SUCCESS,
   USER_DELETE_FAIL,
@@ -415,6 +418,33 @@ export const resetPassword = (token, password) => async (dispatch) => {
   } catch (error) {
     dispatch({
       type: USER_RESET_PASSWORD_FAIL,
+      payload: error.response && error.response.data.message ? error.response.data.message : error.message,
+    })
+  }
+}
+
+// ===== B1: Admin mở khóa COD thủ công cho một tài khoản =====
+export const unlockCod = (userId) => async (dispatch, getState) => {
+  try {
+    dispatch({ type: USER_UNLOCK_COD_REQUEST })
+
+    const {
+      userLogin: { userInfo },
+    } = getState()
+
+    const config = {
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${userInfo.token}`,
+      },
+    }
+
+    const { data } = await axios.put(`/api/users/${userId}/unlock-cod`, {}, config)
+
+    dispatch({ type: USER_UNLOCK_COD_SUCCESS, payload: data })
+  } catch (error) {
+    dispatch({
+      type: USER_UNLOCK_COD_FAIL,
       payload: error.response && error.response.data.message ? error.response.data.message : error.message,
     })
   }

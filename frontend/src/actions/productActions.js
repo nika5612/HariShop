@@ -24,6 +24,18 @@ import {
   PRODUCT_DELETE_REVIEW_REQUEST,
   PRODUCT_DELETE_REVIEW_SUCCESS,
   PRODUCT_DELETE_REVIEW_FAIL,
+  PRODUCT_NL_SEARCH_REQUEST,
+  PRODUCT_NL_SEARCH_SUCCESS,
+  PRODUCT_NL_SEARCH_FAIL,
+  PRODUCT_RELATED_REQUEST,
+  PRODUCT_RELATED_SUCCESS,
+  PRODUCT_RELATED_FAIL,
+  PRODUCT_PERSONALIZED_REQUEST,
+  PRODUCT_PERSONALIZED_SUCCESS,
+  PRODUCT_PERSONALIZED_FAIL,
+  PRODUCT_REVIEW_SUMMARY_REQUEST,
+  PRODUCT_REVIEW_SUMMARY_SUCCESS,
+  PRODUCT_REVIEW_SUMMARY_FAIL,
 } from '../constants/productConstants'
 import { logout } from './userActions'
 
@@ -299,5 +311,63 @@ export const deleteProductReview = (productId, reviewId) => async (dispatch, get
     const message = error.response && error.response.data.message ? error.response.data.message : error.message
     if (message === 'Not authorized, token failed') dispatch(logout())
     dispatch({ type: PRODUCT_DELETE_REVIEW_FAIL, payload: message })
+  }
+}
+
+// ===== B3: Tìm kiếm bằng ngôn ngữ tự nhiên (AI phân tích câu tìm kiếm) =====
+export const naturalLanguageSearch = (query, pageNumber = 1) => async (dispatch) => {
+  try {
+    dispatch({ type: PRODUCT_NL_SEARCH_REQUEST })
+
+    const config = { headers: { 'Content-Type': 'application/json' } }
+    const { data } = await axios.post('/api/products/nl-search', { query, pageNumber }, config)
+
+    dispatch({ type: PRODUCT_NL_SEARCH_SUCCESS, payload: data })
+  } catch (error) {
+    dispatch({ type: PRODUCT_NL_SEARCH_FAIL, payload: getSafeErrorMessage(error) })
+  }
+}
+
+// ===== B4: Gợi ý sản phẩm thông minh =====
+
+// Sản phẩm tương tự + sản phẩm khách hàng thường mua cùng (trang chi tiết sản phẩm)
+export const getRelatedProducts = (productId) => async (dispatch) => {
+  try {
+    dispatch({ type: PRODUCT_RELATED_REQUEST })
+    const { data } = await axios.get(`/api/products/${productId}/related`)
+    dispatch({ type: PRODUCT_RELATED_SUCCESS, payload: data })
+  } catch (error) {
+    dispatch({ type: PRODUCT_RELATED_FAIL, payload: getSafeErrorMessage(error) })
+  }
+}
+
+// Gợi ý cá nhân hoá dựa trên lịch sử đơn hàng của khách đang đăng nhập
+export const getPersonalizedProducts = () => async (dispatch, getState) => {
+  try {
+    dispatch({ type: PRODUCT_PERSONALIZED_REQUEST })
+
+    const { userLogin: { userInfo } } = getState()
+    if (!userInfo) {
+      dispatch({ type: PRODUCT_PERSONALIZED_SUCCESS, payload: { products: [] } })
+      return
+    }
+
+    const config = { headers: { Authorization: `Bearer ${userInfo.token}` } }
+    const { data } = await axios.get('/api/products/personalized', config)
+
+    dispatch({ type: PRODUCT_PERSONALIZED_SUCCESS, payload: data })
+  } catch (error) {
+    dispatch({ type: PRODUCT_PERSONALIZED_FAIL, payload: getSafeErrorMessage(error) })
+  }
+}
+
+// ===== B5: Tóm tắt & phân tích đánh giá bằng AI =====
+export const getReviewSummary = (productId) => async (dispatch) => {
+  try {
+    dispatch({ type: PRODUCT_REVIEW_SUMMARY_REQUEST })
+    const { data } = await axios.get(`/api/products/${productId}/review-summary`)
+    dispatch({ type: PRODUCT_REVIEW_SUMMARY_SUCCESS, payload: data })
+  } catch (error) {
+    dispatch({ type: PRODUCT_REVIEW_SUMMARY_FAIL, payload: getSafeErrorMessage(error) })
   }
 }

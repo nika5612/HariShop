@@ -3,7 +3,20 @@ import { Link } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import { Row, Col, Image, Form, Button } from 'react-bootstrap'
 import Message from '../components/Message'
-import { addToCart, removeFromCart } from '../actions/cartActions'
+import CountdownTimer from '../components/CountdownTimer'
+import { addToCart, removeFromCart, syncCartPrices } from '../actions/cartActions'
+
+const SELECTED_ITEMS_STORAGE_KEY = 'cartSelectedItems'
+
+const loadStoredSelection = () => {
+  try {
+    const raw = localStorage.getItem(SELECTED_ITEMS_STORAGE_KEY)
+    const parsed = raw ? JSON.parse(raw) : []
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
 
 const CartScreen = ({ match, location, history }) => {
   const productId = match.params.id
@@ -15,7 +28,16 @@ const CartScreen = ({ match, location, history }) => {
   const cart = useSelector((state) => state.cart)
   const { cartItems } = cart
 
-  const [selectedItems, setSelectedItems] = useState([])
+  // MỚI: giữ nguyên trạng thái tick chọn giữa các lần vào lại trang giỏ hàng (localStorage),
+  // KHÔNG tự động chọn tất cả nữa — chỉ tự tick sản phẩm VỪA được thêm vào giỏ.
+  const [selectedItems, setSelectedItemsState] = useState(loadStoredSelection)
+  // MỚI (B8): thông báo khi giá 1 vài sản phẩm trong giỏ vừa được tự động cập nhật
+  const [priceChangedItems, setPriceChangedItems] = useState([])
+
+  const setSelectedItems = (items) => {
+    setSelectedItemsState(items)
+    localStorage.setItem(SELECTED_ITEMS_STORAGE_KEY, JSON.stringify(items))
+  }
 
   useEffect(() => {
     if (productId) {
@@ -23,15 +45,47 @@ const CartScreen = ({ match, location, history }) => {
     }
   }, [dispatch, productId, qty, color])
 
+  // MỚI: tự động tick sản phẩm VỪA được thêm vào giỏ (không đụng tới các sản phẩm khác).
+  // Riêng "Mua ngay" (buynow) thì chỉ chọn đúng 1 sản phẩm đó để thanh toán ngay.
   useEffect(() => {
-    if (buynow && productId) {
-      setSelectedItems([`${productId}_${color || ''}`])
-
-    } else if (cartItems.length > 0 && selectedItems.length === 0) {
-      setSelectedItems(cartItems.map(item => `${item.product}_${item.color || ''}`))
-
+    if (!productId) return
+    const key = `${productId}_${color || ''}`
+    if (buynow) {
+      setSelectedItems([key])
+    } else {
+      setSelectedItemsState((prev) => {
+        if (prev.includes(key)) return prev
+        const next = [...prev, key]
+        localStorage.setItem(SELECTED_ITEMS_STORAGE_KEY, JSON.stringify(next))
+        return next
+      })
     }
-  }, [cartItems, buynow, productId, selectedItems.length])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productId, qty, color, buynow])
+
+  // MỚI: dọn các key đã chọn nhưng sản phẩm không còn trong giỏ nữa (vd bị xoá ở tab khác)
+  useEffect(() => {
+    if (cartItems.length === 0) return
+    const validKeys = new Set(cartItems.map((i) => `${i.product}_${i.color || ''}`))
+    setSelectedItemsState((prev) => {
+      const filtered = prev.filter((k) => validKeys.has(k))
+      if (filtered.length !== prev.length) {
+        localStorage.setItem(SELECTED_ITEMS_STORAGE_KEY, JSON.stringify(filtered))
+        return filtered
+      }
+      return prev
+    })
+  }, [cartItems])
+
+  // MỚI (B8): mỗi lần vào trang giỏ hàng, tự đồng bộ lại giá theo giá hiện tại của
+  // sản phẩm (vd Flash Sale đã hết hạn → tự trả về giá gốc), không cần khách làm gì.
+  useEffect(() => {
+    dispatch(syncCartPrices()).then((changed) => {
+      if (changed && changed.length > 0) setPriceChangedItems(changed)
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dispatch])
+
 
   const removeFromCartHandler = (id, color) => {
     dispatch(removeFromCart(id, color))
@@ -40,11 +94,22 @@ const CartScreen = ({ match, location, history }) => {
   }
 
   const toggleSelect = (key) => {
-
     if (selectedItems.includes(key)) {
       setSelectedItems(selectedItems.filter((i) => i !== key))
     } else {
       setSelectedItems([...selectedItems, key])
+    }
+  }
+
+  // MỚI: Chọn tất cả / Bỏ chọn tất cả
+  const allKeys = cartItems.map((item) => `${item.product}_${item.color || ''}`)
+  const isAllSelected = allKeys.length > 0 && allKeys.every((k) => selectedItems.includes(k))
+
+  const toggleSelectAll = () => {
+    if (isAllSelected) {
+      setSelectedItems([])
+    } else {
+      setSelectedItems(allKeys)
     }
   }
 
@@ -84,6 +149,26 @@ const CartScreen = ({ match, location, history }) => {
         </p>
       </div>
 
+      {/* MỚI (B8): thông báo khi giá 1 vài sản phẩm vừa được tự động cập nhật (vd Flash Sale hết hạn) */}
+      {priceChangedItems.length > 0 && (
+        <div style={{
+          background: 'rgba(255,209,102,0.08)', border: '1px solid rgba(255,209,102,0.35)',
+          borderRadius: '12px', padding: '14px 18px', marginBottom: '20px', color: '#ffd166', fontSize: '13.5px',
+        }}>
+          <i className='fas fa-info-circle me-2'></i>
+          Giá của {priceChangedItems.length} sản phẩm trong giỏ hàng vừa được cập nhật lại theo giá hiện tại (khuyến mãi đã kết thúc hoặc thay đổi):
+          <ul style={{ margin: '8px 0 0', paddingLeft: '20px' }}>
+            {priceChangedItems.map((it, idx) => (
+              <li key={idx}>
+                {it.name}: <span style={{ textDecoration: 'line-through', color: '#8a8fa3' }}>{it.oldPrice.toLocaleString('vi-VN')}đ</span>
+                {' → '}
+                <strong>{it.newPrice.toLocaleString('vi-VN')}đ</strong>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <Row className='g-4'>
         <Col md={8}>
           {cartItems.length === 0 ? (
@@ -95,6 +180,26 @@ const CartScreen = ({ match, location, history }) => {
             </Message>
           ) : (
             <div style={cardStyle}>
+              {/* MỚI: Chọn tất cả / Bỏ chọn tất cả */}
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: '10px',
+                paddingBottom: '14px', marginBottom: '4px',
+                borderBottom: '1px solid rgba(255,255,255,0.08)',
+              }}>
+                <Form.Check
+                  type='checkbox'
+                  checked={isAllSelected}
+                  onChange={toggleSelectAll}
+                  style={{ transform: 'scale(1.3)', cursor: 'pointer', marginRight: '5px' }}
+                />
+                <span
+                  onClick={toggleSelectAll}
+                  style={{ color: '#eef0f7', fontSize: '14px', fontWeight: '600', cursor: 'pointer' }}
+                >
+                  {isAllSelected ? 'Bỏ chọn tất cả' : 'Chọn tất cả'} ({selectedItems.length}/{cartItems.length})
+                </span>
+              </div>
+
               {cartItems.map((item, index) => (
                 <div
                   key={item.product}
@@ -155,6 +260,19 @@ const CartScreen = ({ match, location, history }) => {
                     <div style={{ color: '#33FFCC', fontWeight: '700', fontSize: '15px' }}>
                       {item.price.toLocaleString('vi-VN')}đ
                     </div>
+                    {/* MỚI (B8): đếm ngược Flash Sale — nằm dưới giá; khi hết giờ tự đồng bộ lại giá ngay */}
+                    {item.isFlashSaleActive && item.flashSaleEndsAt && (
+                      <div style={{ marginTop: '4px' }}>
+                        <CountdownTimer
+                          endsAt={item.flashSaleEndsAt}
+                          onExpire={() => {
+                            dispatch(syncCartPrices()).then((changed) => {
+                              if (changed && changed.length > 0) setPriceChangedItems(changed)
+                            })
+                          }}
+                        />
+                      </div>
+                    )}
                   </div>
 
                   <div style={{ flexShrink: 0, width: '90px' }}>

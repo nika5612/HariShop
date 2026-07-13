@@ -24,6 +24,8 @@ const authUser = asyncHandler(async (req, res) => {
       email: user.email,
       isAdmin: user.isAdmin,
       addresses: user.addresses,
+      codRestricted: user.codRestricted,   // MỚI (B1)
+      codFailCount: user.codFailCount,     // MỚI (B1)
       token: generateToken(user._id),
     })
   } else {
@@ -390,6 +392,8 @@ const getUserProfile = asyncHandler(async (req, res) => {
       email: user.email,
       isAdmin: user.isAdmin,
       addresses: user.addresses,
+      codRestricted: user.codRestricted,   // MỚI (B1)
+      codFailCount: user.codFailCount,     // MỚI (B1)
     })
   } else {
     res.status(404)
@@ -416,6 +420,8 @@ const updateUserProfile = asyncHandler(async (req, res) => {
       email: updatedUser.email,
       isAdmin: updatedUser.isAdmin,
       addresses: updatedUser.addresses,
+      codRestricted: updatedUser.codRestricted,   // MỚI (B1)
+      codFailCount: updatedUser.codFailCount,     // MỚI (B1)
       token: generateToken(updatedUser._id),
     })
   } else {
@@ -541,6 +547,72 @@ const updateUser = asyncHandler(async (req, res) => {
   }
 })
 
+// ===================== B1: Admin mở khóa COD thủ công =====================
+const unlockCod = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.params.id)
+
+  if (!user) {
+    res.status(404)
+    throw new Error('Không tìm thấy người dùng.')
+  }
+  if (!user.codRestricted) {
+    res.status(400)
+    throw new Error('Tài khoản này hiện không bị hạn chế COD.')
+  }
+
+  user.codRestricted = false
+  user.codFailCount = 0
+  user.codUnlockedAt = new Date()
+  await user.save()
+
+  // Email thông báo (không chặn luồng nếu lỗi)
+  try {
+    const gmailUser = (process.env.GMAIL_USER || '').trim()
+    const gmailAppPassword = (process.env.GMAIL_APP_PASSWORD || '').replace(/\s+/g, '')
+    if (gmailUser && gmailAppPassword) {
+      const createTransporter = (await import('../config/emailConfig.js')).default
+      const transporter = createTransporter()
+      await transporter.sendMail({
+        from: `"HariShop" <${gmailUser}>`,
+        to: user.email,
+        subject: 'HariShop - Tài khoản của bạn đã được mở lại COD',
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #33FFCC;">Chào ${user.name || 'Khách hàng'},</h2>
+            <p>HariShop xác nhận tài khoản của bạn đã được <strong>mở lại quyền thanh toán khi nhận hàng (COD)</strong> bởi quản trị viên.</p>
+            <p>Bạn có thể tiếp tục sử dụng COD cho các đơn hàng tiếp theo.</p>
+            <hr style="border: none; border-top: 1px solid #333; margin: 24px 0;">
+            <p style="color: #666; font-size: 12px;">Trân trọng,<br>HariShop Team</p>
+          </div>
+        `,
+      })
+    }
+  } catch (e) {
+    console.warn('⚠️ Không gửi được email mở khóa COD (non-fatal):', e.message)
+  }
+
+  try {
+    const { createNotification } = await import('./notificationController.js')
+    await createNotification({
+      type: 'cod_unlocked',
+      title: 'Tài khoản của bạn đã được mở lại thanh toán COD',
+      message: 'Quản trị viên đã mở khóa COD cho tài khoản của bạn.',
+      link: '/profile',
+      user: user._id,
+    })
+  } catch (e) {
+    console.warn('⚠️ Không tạo được notification mở khóa COD (non-fatal):', e.message)
+  }
+
+  res.json({
+    _id: user._id,
+    name: user.name,
+    email: user.email,
+    codRestricted: user.codRestricted,
+    codFailCount: user.codFailCount,
+  })
+})
+
 const getUserAddresses = asyncHandler(async (req, res) => {
   const user = await User.findById(req.user._id).select('addresses')
 
@@ -568,5 +640,6 @@ export {
   deleteUser,
   getUserById,
   updateUser,
+  unlockCod,
   getUserAddresses,
 }

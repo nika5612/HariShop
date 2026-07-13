@@ -30,7 +30,8 @@ const specsSchema = mongoose.Schema(
     battery:      { type: Number, default: 0 },          // 4685 (mAh) - Number để AI sort/so sánh
     screenSize:   { type: String, default: '' },        // "6.9 inch"
     screenType:   { type: String, default: '' },        // "OLED 120Hz"
-    camera:       { type: String, default: '' },        // "48MP + 12MP"
+    camera:       { type: String, default: '' },        // "48MP + 12MP" (camera sau)
+    cameraFront:  { type: String, default: '' },        // "32MP" (camera trước/selfie)
     chip:         { type: String, default: '' },        // "A19 Pro"
     os:           { type: String, default: '' },        // "iOS 19"
     sim:          { type: String, default: '' },        // "1 SIM + eSIM"
@@ -38,6 +39,25 @@ const specsSchema = mongoose.Schema(
   },
   { _id: false }
 )
+
+// ── MỚI (B5): Schema lưu cache tóm tắt đánh giá do AI tạo ──────
+const aiReviewSummarySchema = mongoose.Schema({
+  summary: { type: String, default: '' },
+  pros: [{ text: String, mentions: Number }],
+  cons: [{ text: String, mentions: Number }],
+  reviewCountAtGeneration: { type: Number, default: 0 },
+  isSampled: { type: Boolean, default: false },
+  sampleSize: { type: Number, default: 0 },
+  generatedAt: { type: Date },
+}, { _id: false })
+
+// ── MỚI (B8): Schema Flash Sale / giảm giá có thời hạn ─────────
+const flashSaleSchema = mongoose.Schema({
+  isActive:        { type: Boolean, default: false },
+  discountPercent: { type: Number, default: 0, min: 0, max: 90 },
+  startsAt:        { type: Date },
+  endsAt:          { type: Date },
+}, { _id: false })
 
 const productSchema = mongoose.Schema(
   {
@@ -66,6 +86,12 @@ const productSchema = mongoose.Schema(
     specs: { type: specsSchema, default: () => ({}) },
 
     weight: { type: Number, default: 0 },
+
+    // MỚI (B5): cache tóm tắt đánh giá do AI tạo — chỉ tạo lại khi có review mới
+    aiReviewSummary: { type: aiReviewSummarySchema, default: () => ({}) },
+
+    // MỚI (B8): Flash Sale / giảm giá có thời hạn
+    flashSale: { type: flashSaleSchema, default: () => ({}) },
   },
   { timestamps: true }
 )

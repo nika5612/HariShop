@@ -13,11 +13,14 @@ const notificationSchema = mongoose.Schema(
         'order_delivered',  // Đơn hàng giao thành công
         'cancel_request',   // Yêu cầu huỷ đơn
         'refund_request',   // Yêu cầu hoàn tiền
+        'cod_restricted',   // MỚI (B1): khách bị hạn chế COD (báo Admin)
         // ── Thông báo cho Khách hàng ──
         'order_placed',     // Đặt hàng thành công
         'order_status',     // Cập nhật trạng thái đơn hàng (12 bước)
         'refund_completed', // Đã hoàn tiền
         'cancel_approved',  // Đơn hàng đã được huỷ (duyệt bởi Admin)
+        'cod_restricted_customer', // MỚI (B1): khách bị hạn chế COD (báo khách)
+        'cod_unlocked',     // MỚI (B1): khách được mở lại COD
       ],
       required: true,
     },

@@ -101,6 +101,33 @@ const STYLE = `
     box-shadow: 0 32px 70px rgba(0, 0, 0, 0.26);
   }
 
+  .luxHeroPanel--img {
+    background: linear-gradient(135deg, rgba(9,17,28,0.96), rgba(12,17,33,0.92));
+  }
+
+  .luxHeroPanelBG {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  .luxHeroPanelImg {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    filter: saturate(1.1) contrast(1.05) brightness(0.9);
+    transform: scale(1.02);
+  }
+
+  .luxHeroPanelShade {
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(700px 300px at 85% 20%, rgba(62,231,195,0.18), transparent 60%),
+      linear-gradient(90deg, rgba(7,9,20,0.92) 0%, rgba(7,9,20,0.55) 40%, rgba(7,9,20,0.92) 100%);
+  }
+
   .luxHeroPanel::before {
     content: '';
     position: absolute;
@@ -119,6 +146,7 @@ const STYLE = `
     gap: 28px;
     align-items: center;
   }
+
 
   .luxHeroCopy {
     max-width: 690px;
@@ -490,10 +518,123 @@ const STYLE = `
     font-size: 13px;
     font-weight: 800;
     line-height: 1;
+    text-decoration: none !important;
+    transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+  }
+
+  .luxHeroQuick:hover {
+    transform: translateY(-2px);
+    border-color: rgba(62,231,195,0.25);
+    background: rgba(255,255,255,0.08);
   }
 
   .luxHeroQuick i {
     color: var(--lh-accent);
+  }
+
+  .luxHeroQuickLink {
+    color: inherit;
+  }
+
+  .luxHeroBannerGrid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+    margin: 14px 0;
+  }
+
+  .luxMiniBanner {
+    position: relative;
+    overflow: hidden;
+    border-radius: 22px;
+    border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(255,255,255,0.04);
+    box-shadow: 0 14px 30px rgba(0,0,0,0.18);
+    min-height: 120px;
+    text-decoration: none !important;
+  }
+
+  .luxMiniBanner img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    filter: saturate(1.1) contrast(1.05) brightness(0.85);
+    transform: scale(1.02);
+    transition: transform 0.35s ease;
+  }
+
+  .luxMiniBanner:hover img {
+    transform: scale(1.06);
+  }
+
+  .luxMiniBannerOverlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    padding: 14px 14px;
+    gap: 4px;
+    background: linear-gradient(180deg, rgba(7,9,20,0.0) 0%, rgba(7,9,20,0.72) 70%, rgba(7,9,20,0.92) 100%);
+  }
+
+  .luxMiniBannerOverlay strong {
+    color: #fff7ef;
+    font-family: 'M PLUS Rounded 1c', sans-serif;
+    font-size: 16px;
+    font-weight: 900;
+  }
+
+  .luxMiniBannerOverlay span {
+    color: rgba(238,240,247,0.72);
+    font-size: 12px;
+    font-weight: 800;
+  }
+
+  .luxQuickGridWrap {
+    position: relative;
+    z-index: 1;
+  }
+
+  .luxStoryGrid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+  }
+
+  .luxStoryCard {
+    padding: 18px;
+    border-radius: 24px;
+    background: linear-gradient(180deg, rgba(255,255,255,0.07), rgba(255,255,255,0.045));
+    border: 1px solid rgba(255,255,255,0.1);
+    box-shadow: 0 14px 34px rgba(0,0,0,0.2);
+  }
+
+  .luxStoryIcon {
+    width: 52px;
+    height: 52px;
+    border-radius: 18px;
+    display: grid;
+    place-items: center;
+    margin-bottom: 12px;
+    background: linear-gradient(135deg, rgba(184,138,68,0.18), rgba(126,161,215,0.18));
+    color: var(--lh-ink);
+    font-size: 20px;
+  }
+
+  .luxStoryTitle2 {
+    font-family: 'M PLUS Rounded 1c', sans-serif;
+    font-size: 16px;
+    line-height: 1.35;
+    font-weight: 900;
+  }
+
+  .luxStoryText2 {
+    margin-top: 6px;
+    color: var(--lh-sub);
+    font-size: 13px;
+    line-height: 1.7;
+    font-weight: 700;
   }
 
   .luxSection {
@@ -1027,10 +1168,18 @@ const QUICK_PICK = [
 ]
 
 const STORIES = [
-  { title: 'Chọn máy theo lối sống', text: 'Bạn có thể đi từ nhu cầu thực tế như chụp ảnh, làm việc hay pin lâu thay vì đọc quá nhiều thông số.', icon: 'fas fa-star' },
-  { title: 'Gợi ý phân khúc rõ ràng', text: 'Mỗi khung giá được chia mạch lạc để tìm sản phẩm nhanh hơn, tránh cảm giác rối khi mua.', icon: 'fas fa-sliders-h' },
-  { title: 'Tập trung vào trải nghiệm', text: 'Bố cục ưu tiên sản phẩm, độ tương phản rõ và chữ lớn để xem lâu vẫn thoải mái.', icon: 'fas fa-eye' },
+  { title: 'Chọn máy theo lối sống', text: 'Đi từ nhu cầu thực tế như chụp ảnh, làm việc hay pin lâu thay vì đọc quá nhiều thông số.', icon: 'fas fa-star' },
+  { title: 'Gợi ý phân khúc rõ ràng', text: 'Khung giá được chia mạch lạc để tìm sản phẩm nhanh hơn, giảm rối khi mua.', icon: 'fas fa-sliders-h' },
+  { title: 'Tập trung vào trải nghiệm', text: 'Ưu tiên sản phẩm, độ tương phản rõ và chữ lớn để xem lâu vẫn thoải mái.', icon: 'fas fa-eye' },
 ]
+
+const LANDING_BANNERS = {
+  main: '/landingpages/landingpage1.jpg',
+  b1: '/landingpages/landingpage2.jpg',
+  b2: '/landingpages/langdingpage3.jpg',
+  b3: '/landingpages/landingpage4.jpg',
+}
+
 
 const TICKER = ['Hàng chính hãng', 'Bảo hành minh bạch', 'Giao nhanh nội thành', 'Thu cũ đổi mới', 'Trả góp linh hoạt']
 
@@ -1115,7 +1264,19 @@ const HomeScreen = ({ match, location }) => {
         {isLanding ? (
           <>
             <section className='luxHero'>
-              <div className='luxHeroPanel'>
+              <div className='luxHeroPanel luxHeroPanel--img'>
+                <div className='luxHeroPanelBG' aria-hidden='true'>
+                  <img
+                    src={LANDING_BANNERS.main}
+                    alt=''
+                    className='luxHeroPanelImg'
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none'
+                    }}
+                  />
+                  <div className='luxHeroPanelShade' />
+                </div>
+
                 <div className='luxHeroContent'>
                   <div className='luxHeroCopy'>
                     <div className='luxLabel'>
@@ -1129,28 +1290,27 @@ const HomeScreen = ({ match, location }) => {
                     </h1>
 
                     <p className='luxSubtitle'>
-                      Tập trung vào những mẫu bán chạy, ưu đãi rõ ràng và điều hướng nhanh theo thương hiệu để người xem
-                      quyết định mua dễ hơn ngay từ đầu trang.
+                      Ưu đãi rõ ràng, điều hướng nhanh theo nhu cầu — để bạn chọn đúng máy trong vài phút.
                     </p>
 
                     <div className='luxActionRow'>
-                      <Link to='/home' className='luxBtn luxBtnPrimary'>
+                      <Link to='/' className='luxBtn luxBtnPrimary'>
                         <i className='fas fa-fire' /> Mua ngay hôm nay
                       </Link>
-                      <Link to='/?keyword=iphone' className='luxBtn luxBtnSecondary'>
+                      <Link to='/search/iphone' className='luxBtn luxBtnSecondary'>
                         <i className='fab fa-apple' /> iPhone bán chạy
                       </Link>
-                      <Link to='/brand/samsung' className='luxBtn luxBtnSecondary'>
+                      <Link to='/brand/Samsung' className='luxBtn luxBtnSecondary'>
                         <i className='fab fa-android' /> Samsung nổi bật
                       </Link>
                     </div>
 
                     <div className='luxHeroQuickRow'>
-                      {HERO_QUICKS.map((item) => (
-                        <div key={item.label} className='luxHeroQuick'>
+                      {QUICK_PICK.map((item) => (
+                        <Link key={item.label} to={item.to} className='luxHeroQuick luxHeroQuickLink'>
                           <i className={item.icon} />
                           <span>{item.label}</span>
-                        </div>
+                        </Link>
                       ))}
                     </div>
                   </div>
@@ -1168,32 +1328,21 @@ const HomeScreen = ({ match, location }) => {
                         </div>
                       </div>
 
-                      <div className='luxHeroPhoneArena'>
-                        <div className='luxHeroPhone luxHeroPhoneBack'>
-                          <div className='luxHeroPhoneBackInner'>
-                            <div className='luxHeroCameraCluster'>
-                              <span />
-                              <span />
-                              <span />
-                            </div>
+                      <div className='luxHeroBannerGrid'>
+                        <Link to='/search/iphone' className='luxMiniBanner'>
+                          <img src={LANDING_BANNERS.b1} alt='iPhone' />
+                          <div className='luxMiniBannerOverlay'>
+                            <strong>iPhone hot</strong>
+                            <span>Đổi nhanh – chốt gọn</span>
                           </div>
-                        </div>
-
-                        <div className='luxHeroPhone luxHeroPhoneFront'>
-                          <div className='luxHeroPhoneFrontInner'>
-                            <div className='luxHeroScreenRing' />
+                        </Link>
+                        <Link to='/brand/Samsung' className='luxMiniBanner'>
+                          <img src={LANDING_BANNERS.b2} alt='Samsung' />
+                          <div className='luxMiniBannerOverlay'>
+                            <strong>Samsung nổi bật</strong>
+                            <span>Màn đẹp – trải nghiệm mượt</span>
                           </div>
-                        </div>
-
-                        <div className='luxHeroFloat luxHeroFloatLeft'>
-                          <strong>Camera nổi bật</strong>
-                          <span>Chụp đêm rõ, quay video ổn định.</span>
-                        </div>
-
-                        <div className='luxHeroFloat luxHeroFloatRight'>
-                          <strong>Sạc nhanh, pin khỏe</strong>
-                          <span>Dùng cả ngày, sạc lại rất nhanh.</span>
-                        </div>
+                        </Link>
                       </div>
 
                       <div className='luxMiniStats'>
@@ -1211,7 +1360,23 @@ const HomeScreen = ({ match, location }) => {
                   </div>
                 </div>
               </div>
+            </section>
 
+            <section className='luxSection'>
+              <div className='luxQuickGridWrap'>
+                <SectionHead title='Câu chuyện mua hàng' right={<div className='luxSectionCount'>Đơn giản – nhanh chóng</div>} />
+                <div className='luxStoryGrid'>
+                  {STORIES.map((s) => (
+                    <div key={s.title} className='luxStoryCard'>
+                      <div className='luxStoryIcon'>
+                        <i className={s.icon} />
+                      </div>
+                      <div className='luxStoryTitle2'>{s.title}</div>
+                      <div className='luxStoryText2'>{s.text}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </section>
 
             <section className='luxSection luxCarouselSection'>

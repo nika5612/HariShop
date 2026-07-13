@@ -3,9 +3,14 @@ import { BrowserRouter as Router, Route, useLocation } from 'react-router-dom'
 import { Container } from 'react-bootstrap'
 import Header from './components/Header'
 import Footer from './components/Footer'
+import ChatWidget from './components/ChatWidget'
+import CompareBar from './components/CompareBar'
+import SocketManager from './components/SocketManager'
 
 
 import HomeScreen from './screens/HomeScreen'
+import SmartSearchScreen from './screens/SmartSearchScreen'
+import CompareScreen from './screens/CompareScreen'
 import ProductScreen from './screens/ProductScreen'
 import CartScreen from './screens/CartScreen'
 import LoginScreen from './screens/LoginScreen'
@@ -112,6 +117,10 @@ const App = () => {
 
           <Route path='/search/:keyword' component={HomeScreen} exact />
           <Route path='/search/:keyword/page/:pageNumber' component={HomeScreen} exact />
+          {/* MỚI (B3): Tìm kiếm bằng ngôn ngữ tự nhiên (AI) */}
+          <Route path='/smart-search' component={SmartSearchScreen} exact />
+          {/* MỚI (B7): So sánh sản phẩm */}
+          <Route path='/compare' component={CompareScreen} exact />
           <Route path='/page/:pageNumber' component={HomeScreen} exact />
           <Route path='/' component={HomeScreen} exact />
           
@@ -119,6 +128,12 @@ const App = () => {
         </Container>
       </main>
       <Footer />
+      {/* MỚI (B2): Chatbot AI tư vấn sản phẩm — nổi góc phải, ẩn ở khu vực Admin */}
+      <ChatWidget />
+      {/* MỚI (B7): Thanh so sánh sản phẩm nổi ở dưới màn hình */}
+      <CompareBar />
+      {/* MỚI (B9): Quản lý kết nối Socket.io + nhận thông báo real-time */}
+      <SocketManager />
     </Router>
   )
 }

@@ -38,9 +38,15 @@ const ProductAddScreen = ({ history }) => {
   // ── MỚI: state thông số kỹ thuật (specs) - tất cả không bắt buộc ──
   const [specs, setSpecs] = useState({
     ram: '', storage: '', battery: '', screenSize: '', screenType: '',
-    camera: '', chip: '', os: '', sim: '', connectivity: '',
+    camera: '', cameraFront: '', chip: '', os: '', sim: '', connectivity: '',
   })
   const updateSpec = (field, value) => setSpecs((s) => ({ ...s, [field]: value }))
+
+  // ── MỚI (B8): state Flash Sale ──
+  const [flashSale, setFlashSale] = useState({
+    isActive: false, discountPercent: '', startsAt: '', endsAt: '',
+  })
+  const updateFlashSale = (field, value) => setFlashSale((s) => ({ ...s, [field]: value }))
 
   const dispatch = useDispatch()
 
@@ -131,6 +137,7 @@ const ProductAddScreen = ({ history }) => {
         description,
         colors,
         specs,
+        flashSale,
         countInStock: colors.length > 0 ? totalStock : Number(manualStock) || 0,
       })
     )
@@ -469,9 +476,14 @@ const ProductAddScreen = ({ history }) => {
                   onChange={(e) => updateSpec('screenType', e.target.value)} style={{ ...inputStyle, fontSize: 13 }} />
               </div>
               <div>
-                <div style={{ fontSize: 11, color: '#aaa', marginBottom: 3 }}>Camera</div>
+                <div style={{ fontSize: 11, color: '#aaa', marginBottom: 3 }}>Camera sau</div>
                 <Form.Control type='text' placeholder='VD: 48MP + 12MP' value={specs.camera}
                   onChange={(e) => updateSpec('camera', e.target.value)} style={{ ...inputStyle, fontSize: 13 }} />
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: '#aaa', marginBottom: 3 }}>Camera trước</div>
+                <Form.Control type='text' placeholder='VD: 32MP' value={specs.cameraFront}
+                  onChange={(e) => updateSpec('cameraFront', e.target.value)} style={{ ...inputStyle, fontSize: 13 }} />
               </div>
               <div>
                 <div style={{ fontSize: 11, color: '#aaa', marginBottom: 3 }}>Chip</div>
@@ -492,6 +504,45 @@ const ProductAddScreen = ({ history }) => {
                 <div style={{ fontSize: 11, color: '#aaa', marginBottom: 3 }}>Kết nối</div>
                 <Form.Control type='text' placeholder='VD: 5G, WiFi 7' value={specs.connectivity}
                   onChange={(e) => updateSpec('connectivity', e.target.value)} style={{ ...inputStyle, fontSize: 13 }} />
+              </div>
+            </div>
+          </Form.Group>
+
+          {/* ── MỚI (B8): Flash Sale ── */}
+          <Form.Group controlId='flashSale' style={{ marginTop: 20 }}>
+            <Form.Label>
+              <i className='fas fa-bolt me-2' style={{ color: '#ff6b6b' }}></i>
+              Flash Sale <span style={{ color: '#aaa', fontWeight: 'normal', fontSize: 12 }}>(không bắt buộc)</span>
+            </Form.Label>
+            <div style={{ background: 'rgba(255,107,107,0.06)', border: '1px solid rgba(255,107,107,0.25)', borderRadius: 10, padding: 16 }}>
+              <Form.Check
+                type='switch'
+                id='flashSaleActive'
+                label='Kích hoạt Flash Sale cho sản phẩm này'
+                checked={flashSale.isActive}
+                onChange={(e) => updateFlashSale('isActive', e.target.checked)}
+                style={{ marginBottom: 12 }}
+              />
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
+                <div>
+                  <div style={{ fontSize: 11, color: '#aaa', marginBottom: 3 }}>% Giảm giá</div>
+                  <Form.Control type='number' min={1} max={90} placeholder='VD: 20' value={flashSale.discountPercent}
+                    onChange={(e) => updateFlashSale('discountPercent', e.target.value)} style={{ ...inputStyle, fontSize: 13 }} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: '#aaa', marginBottom: 3 }}>Bắt đầu</div>
+                  <Form.Control type='datetime-local' value={flashSale.startsAt}
+                    onChange={(e) => updateFlashSale('startsAt', e.target.value)} style={{ ...inputStyle, fontSize: 13 }} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: '#aaa', marginBottom: 3 }}>Kết thúc</div>
+                  <Form.Control type='datetime-local' value={flashSale.endsAt}
+                    onChange={(e) => updateFlashSale('endsAt', e.target.value)} style={{ ...inputStyle, fontSize: 13 }} />
+                </div>
+              </div>
+              <div style={{ color: '#8a8fa3', fontSize: 11.5, marginTop: 10 }}>
+                <i className='fas fa-info-circle me-1'></i>
+                Giá sẽ tự động quay về giá gốc ngay khi hết thời gian kết thúc — không cần thao tác gì thêm.
               </div>
             </div>
           </Form.Group>

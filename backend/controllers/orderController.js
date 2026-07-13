@@ -1,9 +1,11 @@
 import asyncHandler from 'express-async-handler'
 import mongoose from 'mongoose'
 import Order from '../models/orderModel.js'
+import Product from '../models/productModel.js'
 import Settings from '../models/settingsModel.js'
 import Voucher from '../models/voucherModel.js'
 import { createNotification } from './notificationController.js'
+import { computeFlashSale } from '../utils/flashSale.js'
 
 
 const USE_SANDBOX = (process.env.GHN_USE_SANDBOX || '').trim() === 'true'
@@ -189,6 +191,114 @@ const notifyCustomerOrderStatus = async (order, status) => {
   })
 }
 
+// ═══════════════ B1: Hạn chế COD với tài khoản giao hàng thất bại ═══════════════
+
+const COD_FAIL_THRESHOLD = 2 // ngưỡng số lần giao thất bại để khóa COD
+
+// Gửi email thông báo cho khách khi bị hạn chế / được mở lại COD
+const sendCodStatusEmail = async (user, { restricted }) => {
+  try {
+    const gmailUser = (process.env.GMAIL_USER || '').trim()
+    const gmailAppPassword = (process.env.GMAIL_APP_PASSWORD || '').replace(/\s+/g, '')
+    if (!gmailUser || !gmailAppPassword) return
+
+    const createTransporter = (await import('../config/emailConfig.js')).default
+    const transporter = createTransporter()
+
+    const subject = restricted
+      ? 'HariShop - Tài khoản của bạn đã bị hạn chế thanh toán COD'
+      : 'HariShop - Tài khoản của bạn đã được mở lại COD'
+
+    const html = restricted
+      ? `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #ff6b6b;">Chào ${user.name || 'Khách hàng'},</h2>
+          <p>Tài khoản của bạn tại HariShop đã có <strong>${user.codFailCount} lần giao hàng thất bại</strong>
+          (COD), nên hiện tại <strong>không thể chọn thanh toán khi nhận hàng (COD)</strong> cho các đơn hàng tiếp theo.</p>
+          <p>Bạn vẫn có thể tiếp tục mua sắm bình thường bằng hình thức <strong>chuyển khoản / QR Code</strong>.</p>
+          <p>Nếu đơn hàng kế tiếp được giao thành công, hệ thống sẽ <strong>tự động mở lại COD</strong> cho bạn.
+          Nếu bạn cho rằng đây là nhầm lẫn, vui lòng liên hệ shop để được hỗ trợ.</p>
+          <hr style="border: none; border-top: 1px solid #333; margin: 24px 0;">
+          <p style="color: #666; font-size: 12px;">Trân trọng,<br>HariShop Team</p>
+        </div>
+      `
+      : `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #33FFCC;">Chào ${user.name || 'Khách hàng'},</h2>
+          <p>HariShop xác nhận tài khoản của bạn đã được <strong>mở lại quyền thanh toán khi nhận hàng (COD)</strong>.</p>
+          <p>Bạn có thể tiếp tục sử dụng COD bình thường cho các đơn hàng tiếp theo. Cảm ơn bạn đã đồng hành cùng HariShop!</p>
+          <hr style="border: none; border-top: 1px solid #333; margin: 24px 0;">
+          <p style="color: #666; font-size: 12px;">Trân trọng,<br>HariShop Team</p>
+        </div>
+      `
+
+    await transporter.sendMail({ from: `"HariShop" <${gmailUser}>`, to: user.email, subject, html })
+  } catch (e) {
+    console.warn('⚠️ Không gửi được email thông báo COD (non-fatal):', e.message)
+  }
+}
+
+// Gọi mỗi khi trạng thái đơn hàng đổi sang 'delivery_failed' hoặc 'delivered'
+// để tăng/khôi phục codFailCount và bật/tắt codRestricted cho user tương ứng.
+const handleCodRestrictionOnStatusChange = async (order, status) => {
+  try {
+    if (status !== 'delivery_failed' && status !== 'delivered') return
+
+    const User = (await import('../models/userModel.js')).default
+    const user = await User.findById(order.user)
+    if (!user) return
+
+    if (status === 'delivery_failed') {
+      user.codFailCount = (user.codFailCount || 0) + 1
+
+      if (user.codFailCount >= COD_FAIL_THRESHOLD && !user.codRestricted) {
+        user.codRestricted = true
+        user.codRestrictedAt = new Date()
+        await user.save()
+
+        await sendCodStatusEmail(user, { restricted: true })
+
+        // Báo Admin
+        await createNotification({
+          type: 'cod_restricted',
+          title: `Khách "${user.name}" bị hạn chế COD (${user.codFailCount} lần giao thất bại)`,
+          message: `Đơn #${order._id.toString().slice(-6).toUpperCase()}`,
+          link: `/admin/user/${user._id}/edit`,
+        })
+        // Báo khách
+        await createNotification({
+          type: 'cod_restricted_customer',
+          title: 'Tài khoản của bạn đã bị hạn chế thanh toán COD',
+          message: `Do có ${user.codFailCount} đơn giao hàng không thành công, bạn chỉ có thể thanh toán trước qua QR cho các đơn tiếp theo.`,
+          link: `/profile`,
+          user: user._id,
+        })
+      } else {
+        await user.save()
+      }
+    }
+
+    if (status === 'delivered' && user.codRestricted) {
+      user.codRestricted = false
+      user.codFailCount = 0
+      user.codUnlockedAt = new Date()
+      await user.save()
+
+      await sendCodStatusEmail(user, { restricted: false })
+
+      await createNotification({
+        type: 'cod_unlocked',
+        title: 'Tài khoản của bạn đã được mở lại thanh toán COD',
+        message: 'Đơn hàng gần nhất của bạn đã giao thành công.',
+        link: `/profile`,
+        user: user._id,
+      })
+    }
+  } catch (e) {
+    console.error('❌ Lỗi xử lý hạn chế COD (non-fatal, B1):', e.message)
+  }
+}
+
 const addOrderItems = asyncHandler(async (req, res) => {
   console.log('=== BACKEND RECEIVED ===', JSON.stringify(req.body, null, 2))
   const {
@@ -226,8 +336,46 @@ const addOrderItems = asyncHandler(async (req, res) => {
   if (!addr.ward?.trim())     { res.status(400); throw new Error('Ward required') }
   if (!addr.detail?.trim())   { res.status(400); throw new Error('Address detail required') }
   if (!paymentMethod?.trim()) { res.status(400); throw new Error('Payment method required') }
+
+  // ── MỚI (B1): chặn ở backend nếu tài khoản đang bị hạn chế COD (tránh bypass frontend) ──
+  if (paymentMethod === 'cod') {
+    const User = (await import('../models/userModel.js')).default
+    const currentUser = await User.findById(req.user._id).select('codRestricted codFailCount')
+    if (currentUser?.codRestricted) {
+      res.status(400)
+      throw new Error('Tài khoản của bạn đang bị hạn chế thanh toán khi nhận hàng (COD) do có nhiều lần giao hàng thất bại. Vui lòng chọn thanh toán trước qua QR Code.')
+    }
+  }
+
   if (isNaN(itemsPrice) || itemsPrice < 0) { res.status(400); throw new Error('Invalid items price') }
   if (isNaN(totalPrice) || totalPrice <= 0) { res.status(400); throw new Error('Invalid total price') }
+
+  // ── MỚI (B8): kiểm tra lại GIÁ THẬT của từng sản phẩm ngay trước khi tạo đơn ──
+  // Phòng trường hợp Flash Sale đã hết hạn (hoặc giá đổi) trong lúc khách đang thanh
+  // toán mà chưa quay lại giỏ hàng để đồng bộ giá, hoặc dữ liệu gửi lên bị chỉnh sửa.
+  // Nếu có bất kỳ sản phẩm nào lệch giá → từ chối tạo đơn, yêu cầu khách xem lại giỏ hàng
+  // (an toàn hơn nhiều so với việc âm thầm tự tính lại tổng tiền).
+  const productIds = [...new Set(orderItems.map((item) => item.product))]
+  const currentProducts = await Product.find({ _id: { $in: productIds } }).lean()
+  const productMap = {}
+  currentProducts.forEach((p) => { productMap[p._id.toString()] = p })
+
+  const priceMismatches = []
+  for (const item of orderItems) {
+    const p = productMap[item.product?.toString()]
+    if (!p) continue // sản phẩm không còn tồn tại — sẽ được xử lý ở bước khác nếu cần
+    const { isFlashSaleActive, salePrice } = computeFlashSale(p)
+    const currentPrice = isFlashSaleActive ? salePrice : p.price
+    if (currentPrice !== item.price) {
+      priceMismatches.push({ name: item.name, oldPrice: item.price, newPrice: currentPrice })
+    }
+  }
+
+  if (priceMismatches.length > 0) {
+    res.status(409)
+    const detail = priceMismatches.map((m) => `${m.name}: ${m.oldPrice.toLocaleString('vi-VN')}đ → ${m.newPrice.toLocaleString('vi-VN')}đ`).join('; ')
+    throw new Error(`Giá của ${priceMismatches.length} sản phẩm đã thay đổi (có thể do khuyến mãi vừa kết thúc): ${detail}. Vui lòng quay lại giỏ hàng để cập nhật giá mới nhất trước khi đặt hàng.`)
+  }
 
   let computedTotalWeight = 0
   if (Array.isArray(orderItems)) {
@@ -370,7 +518,7 @@ const addOrderItems = asyncHandler(async (req, res) => {
 // @route   GET /api/orders/:id
 // @access  Private
 const getOrderById = asyncHandler(async (req, res) => {
-  const order = await Order.findById(req.params.id).populate('user', 'name email')
+  const order = await Order.findById(req.params.id).populate('user', 'name email codRestricted codFailCount')
   if (order) {
     res.json(order)
   } else {
@@ -399,6 +547,34 @@ const updateOrderToPaid = asyncHandler(async (req, res) => {
   }
 })
 
+// @desc    Admin đánh dấu đã thu tiền / chưa thu tiền cho đơn hàng thanh toán COD
+// @route   PUT /api/orders/:id/cod-payment
+// @access  Private/Admin
+const updateCodPaymentStatus = asyncHandler(async (req, res) => {
+  const order = await Order.findById(req.params.id)
+  if (!order) {
+    res.status(404)
+    throw new Error('Order not found')
+  }
+
+  if (order.paymentMethod !== 'cod') {
+    res.status(400)
+    throw new Error('Chức năng này chỉ áp dụng cho đơn hàng thanh toán khi nhận hàng (COD).')
+  }
+
+  const { isPaid } = req.body
+  if (typeof isPaid !== 'boolean') {
+    res.status(400)
+    throw new Error('Thiếu hoặc sai định dạng trạng thái thanh toán (isPaid phải là true/false).')
+  }
+
+  order.isPaid = isPaid
+  order.paidAt = isPaid ? (order.paidAt || new Date()) : null
+
+  const updatedOrder = await order.save()
+  res.json(updatedOrder)
+})
+
 // @desc    Update order to delivered
 // @route   PUT /api/orders/:id/deliver
 // @access  Private/Admin
@@ -422,6 +598,9 @@ const updateOrderToDelivered = asyncHandler(async (req, res) => {
 
     // ── MỚI: thông báo cho KHÁCH HÀNG ──────────────────────────
     await notifyCustomerOrderStatus(order, 'delivered')
+
+    // ── MỚI (B1): reset hạn chế COD nếu giao thành công ────────
+    await handleCodRestrictionOnStatusChange(order, 'delivered')
 
     res.json(updatedOrder)
   } else {
@@ -471,6 +650,9 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
 
   // ── MỚI: thông báo cho KHÁCH HÀNG ở MỌI lần thay đổi trạng thái ──
   await notifyCustomerOrderStatus(order, status)
+
+  // ── MỚI (B1): tăng codFailCount / khóa COD khi giao thất bại, reset khi giao thành công ──
+  await handleCodRestrictionOnStatusChange(order, status)
 
   res.json(updatedOrder)
 })
@@ -559,6 +741,8 @@ const trackOrder = asyncHandler(async (req, res) => {
       await order.save()
       // ── MỚI: thông báo cho KHÁCH HÀNG ────────────────────────
       await notifyCustomerOrderStatus(order, mappedStatus)
+      // ── MỚI (B1): xử lý hạn chế COD theo trạng thái mới từ GHN ──
+      await handleCodRestrictionOnStatusChange(order, mappedStatus)
     }
 
     res.json({
@@ -1121,6 +1305,7 @@ export {
   addOrderItems,
   getOrderById,
   updateOrderToPaid,
+  updateCodPaymentStatus,
   updateOrderToDelivered,
   updateOrderStatus,
   getMyOrders,

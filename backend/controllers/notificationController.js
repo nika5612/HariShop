@@ -1,12 +1,16 @@
 import asyncHandler from 'express-async-handler'
 import Notification from '../models/notificationModel.js'
+import { emitNotification } from '../socket.js'
 
 // Helper dùng ở các controller khác (order, v.v.) để tạo thông báo mới.
 // Không export qua route — chỉ import trực tiếp trong code backend.
 // `user`: để trống (null) = thông báo cho Admin. Truyền vào userId = thông báo riêng cho khách đó.
 export const createNotification = async ({ type, title, message = '', link = '', order = null, user = null }) => {
   try {
-    await Notification.create({ type, title, message, link, order, user })
+    const notification = await Notification.create({ type, title, message, link, order, user })
+    // MỚI (B9): bắn real-time qua Socket.io ngay sau khi lưu — Admin/khách nhận được
+    // tức thì, không cần đợi polling hay F5 trang.
+    emitNotification(notification)
   } catch (err) {
     // Không để lỗi tạo thông báo làm hỏng luồng chính (đặt đơn, huỷ đơn...)
     console.error('⚠️ Lỗi tạo notification:', err.message)

@@ -1,5 +1,6 @@
 import path from 'path'
 import { fileURLToPath } from 'url'
+import http from 'http'
 import express from 'express'
 import dotenv from 'dotenv'
 import colors from 'colors'
@@ -27,6 +28,8 @@ import uploadRoutes from './routes/uploadRoutes.js'
 import shippingRoutes from './routes/shippingRoutes.js'
 import settingsRoutes from './routes/settingsRoutes.js'
 import notificationRoutes from './routes/notificationRoutes.js'
+import chatRoutes from './routes/chatRoutes.js'
+import { initSocket } from './socket.js'
 import { notFound, errorHandler } from './middleware/errorMiddleware.js'
 // ✅ XÓA import transporter ở đây
 import Settings from './models/settingsModel.js'
@@ -174,6 +177,7 @@ app.use('/api/upload', uploadRoutes)
 app.use('/api/shipping', shippingRoutes)
 app.use('/api/settings', settingsRoutes)
 app.use('/api/notifications', notificationRoutes)
+app.use('/api/chat', chatRoutes)
 
 // ✅ sePay webhook (no auth)
 app.use('/api/payments', sepayWebhookRoutes)
@@ -240,7 +244,13 @@ const PORT = process.env.PORT || 5000
 async function start() {
   await connectDB()
   await ensureDefaultWarehouseSettings()
-  app.listen(
+
+  // MỚI (B9): dùng http.createServer thay vì app.listen trực tiếp, để gắn được
+  // Socket.io lên CÙNG server (cùng port, không cần mở port riêng).
+  const httpServer = http.createServer(app)
+  initSocket(httpServer)
+
+  httpServer.listen(
     PORT,
     console.log(
       `Server running in ${process.env.NODE_ENV} mode on port ${PORT}`.yellow.bold
