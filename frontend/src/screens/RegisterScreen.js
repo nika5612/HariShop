@@ -352,6 +352,37 @@ const RegisterScreen = ({ location, history }) => {
         </Button>
       </Form>
 
+      {/* MỚI (B11): Đăng ký/Đăng nhập nhanh với Google */}
+      <div style={{ display: 'flex', alignItems: 'center', margin: '1.5rem 0', color: '#666' }}>
+        <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.15)' }}></div>
+        <span style={{ padding: '0 12px', fontSize: '13px' }}>hoặc</span>
+        <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.15)' }}></div>
+      </div>
+      <Button
+        onClick={() => { window.location.href = '/api/users/auth/google' }}
+        style={{
+          width: '100%',
+          background: '#ffffff',
+          border: '1px solid rgba(0,0,0,0.1)',
+          color: '#3c4043',
+          fontWeight: '600',
+          padding: '14px',
+          borderRadius: '12px',
+          fontSize: '15px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '10px',
+        }}
+      >
+        <img
+          src='https://developers.google.com/identity/images/g-logo.png'
+          alt='Google'
+          style={{ width: 18, height: 18 }}
+        />
+        Tiếp Tục Với Google
+      </Button>
+
       <Row style={{ marginTop: '2rem' }}>
         <Col style={{ textAlign: 'center', color: '#b8bcc8' }}>
           Đã Có Tài Khoản?{' '}

@@ -19,6 +19,10 @@ const colorSchema = mongoose.Schema({
   name:         { type: String, required: true },   // "Đen", "Trắng"...
   hexCode:      { type: String, default: '#888888' }, // mã màu hiển thị
   countInStock: { type: Number, required: true, default: 0 },
+  // MỚI: ảnh riêng cho từng màu (link Cloudinary) — khi khách chọn màu ở
+  // trang chi tiết sản phẩm, ảnh chính sẽ đổi theo ảnh này. Để trống thì
+  // dùng ảnh mặc định (product.image) của sản phẩm.
+  image:        { type: String, default: '' },
 })
 
 // ── MỚI: Schema thông số kỹ thuật (specs) ──────────────────────

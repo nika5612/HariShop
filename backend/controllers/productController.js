@@ -440,15 +440,19 @@ const createProduct = asyncHandler(async (req, res) => {
     user:        req.user._id,
     // Chuẩn hóa image: nếu frontend gửi '/uploads/...' thì giữ nguyên.
     // Nếu gửi lại là 'uploads/...' hoặc fileName thì tự thêm '/uploads/'.
+    // MỚI (B10): nếu là link Cloudinary/URL đầy đủ (http:// hoặc https://) thì
+    // giữ nguyên, KHÔNG được ghép thêm '/uploads/' vào trước.
     image:
       typeof image === 'string'
-        ? image.startsWith('/uploads/')
+        ? /^https?:\/\//i.test(image)
           ? image
-          : image.startsWith('uploads/')
-            ? `/${image}`
-            : image.startsWith('/')
-              ? image
-              : `/uploads/${image}`
+          : image.startsWith('/uploads/')
+            ? image
+            : image.startsWith('uploads/')
+              ? `/${image}`
+              : image.startsWith('/')
+                ? image
+                : `/uploads/${image}`
         : '/images/sample.jpg',
     brand:       brand       || 'Sample brand',
     category:    category    || 'Sample category',
@@ -490,15 +494,19 @@ const updateProduct = asyncHandler(async (req, res) => {
     product.weight      = weight
     product.description = description
     // Chuẩn hóa lại image cho update
+    // MỚI (B10): nếu là link Cloudinary/URL đầy đủ (http:// hoặc https://) thì
+    // giữ nguyên, KHÔNG được ghép thêm '/uploads/' vào trước.
     product.image =
       typeof image === 'string'
-        ? image.startsWith('/uploads/')
+        ? /^https?:\/\//i.test(image)
           ? image
-          : image.startsWith('uploads/')
-            ? `/${image}`
-            : image.startsWith('/')
-              ? image
-              : `/uploads/${image}`
+          : image.startsWith('/uploads/')
+            ? image
+            : image.startsWith('uploads/')
+              ? `/${image}`
+              : image.startsWith('/')
+                ? image
+                : `/uploads/${image}`
         : product.image
     product.brand       = brand
     product.category    = category

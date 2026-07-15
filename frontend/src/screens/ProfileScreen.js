@@ -5,10 +5,18 @@ import { Link } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import Loader from '../components/Loader'
 import Message from '../components/Message'
-import { updateUserProfile } from '../actions/userActions'
+import {
+  updateUserProfile,
+  requestChangePasswordOtp,
+  verifyChangePasswordOtp,
+} from '../actions/userActions'
 import { getUserProfile } from '../actions/userProfileActions'
 import { listMyOrders } from '../actions/orderActions'
-import { USER_UPDATE_PROFILE_RESET } from '../constants/userConstants'
+import {
+  USER_UPDATE_PROFILE_RESET,
+  USER_CHANGE_PWD_REQUEST_OTP_RESET,
+  USER_CHANGE_PWD_VERIFY_OTP_RESET,
+} from '../constants/userConstants'
 import { getOrderStatusInfo } from '../constants/orderStatusConfig'
 
 const inputStyle = {
@@ -45,9 +53,15 @@ const sectionStyle = {
 const ProfileScreen = ({ history }) => {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
   const [message, setMessage] = useState(null)
+
+  // ===== B12: Đổi mật khẩu qua OTP =====
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmNewPassword, setConfirmNewPassword] = useState('')
+  const [otp, setOtp] = useState('')
+  const [otpSent, setOtpSent] = useState(false)
+  const [pwdMessage, setPwdMessage] = useState(null)
+  const [cooldown, setCooldown] = useState(0)
 
   const dispatch = useDispatch()
 
@@ -59,6 +73,21 @@ const ProfileScreen = ({ history }) => {
 
   const userUpdateProfile = useSelector((state) => state.userUpdateProfile)
   const { success } = userUpdateProfile
+
+  const userChangePasswordRequestOtp = useSelector((state) => state.userChangePasswordRequestOtp)
+  const {
+    loading: loadingRequestOtp,
+    error: errorRequestOtp,
+    success: successRequestOtp,
+    data: requestOtpData,
+  } = userChangePasswordRequestOtp
+
+  const userChangePasswordVerifyOtp = useSelector((state) => state.userChangePasswordVerifyOtp)
+  const {
+    loading: loadingVerifyOtp,
+    error: errorVerifyOtp,
+    success: successVerifyOtp,
+  } = userChangePasswordVerifyOtp
 
   const orderListMy = useSelector((state) => state.orderListMy)
   const { loading: loadingOrders, error: errorOrders, orders = [] } = orderListMy
@@ -79,14 +108,72 @@ const ProfileScreen = ({ history }) => {
     }
   }, [user])
 
+  // Sau khi gửi OTP thành công → hiện ô nhập OTP + bắt đầu đếm ngược cooldown gửi lại
+  useEffect(() => {
+    if (successRequestOtp) {
+      setOtpSent(true)
+      setCooldown(requestOtpData?.cooldownSeconds || 60)
+    }
+  }, [successRequestOtp, requestOtpData])
+
+  // Đếm ngược cooldown
+  useEffect(() => {
+    if (cooldown <= 0) return
+    const timer = setInterval(() => setCooldown((c) => Math.max(0, c - 1)), 1000)
+    return () => clearInterval(timer)
+  }, [cooldown])
+
+  // Đổi mật khẩu thành công → reset toàn bộ form đổi mật khẩu
+  useEffect(() => {
+    if (successVerifyOtp) {
+      setNewPassword('')
+      setConfirmNewPassword('')
+      setOtp('')
+      setOtpSent(false)
+      setCooldown(0)
+      setPwdMessage(null)
+    }
+  }, [successVerifyOtp])
+
   const submitHandler = (e) => {
     e.preventDefault()
-    if (password !== confirmPassword) {
-      setMessage('Mật khẩu không khớp')
-    } else {
-      dispatch(updateUserProfile({ id: user._id, name, email, password }))
-      dispatch({ type: USER_UPDATE_PROFILE_RESET })
+    dispatch(updateUserProfile({ id: user._id, name, email }))
+    dispatch({ type: USER_UPDATE_PROFILE_RESET })
+  }
+
+  // Bước 1: gửi mã OTP về email
+  const requestOtpHandler = (e) => {
+    e.preventDefault()
+    setPwdMessage(null)
+    if (newPassword.length < 6) {
+      setPwdMessage('Mật khẩu mới phải có ít nhất 6 ký tự.')
+      return
     }
+    if (newPassword !== confirmNewPassword) {
+      setPwdMessage('Mật khẩu xác nhận không khớp.')
+      return
+    }
+    dispatch({ type: USER_CHANGE_PWD_VERIFY_OTP_RESET })
+    dispatch(requestChangePasswordOtp(newPassword))
+  }
+
+  // Bước 2: xác nhận OTP + thực sự đổi mật khẩu
+  const verifyOtpHandler = (e) => {
+    e.preventDefault()
+    setPwdMessage(null)
+    if (!otp.trim()) {
+      setPwdMessage('Vui lòng nhập mã OTP.')
+      return
+    }
+    dispatch(verifyChangePasswordOtp(otp.trim(), newPassword))
+  }
+
+  const cancelChangePassword = () => {
+    setOtpSent(false)
+    setOtp('')
+    setPwdMessage(null)
+    dispatch({ type: USER_CHANGE_PWD_REQUEST_OTP_RESET })
+    dispatch({ type: USER_CHANGE_PWD_VERIFY_OTP_RESET })
   }
 
   const recentOrders = orders.slice(0, 5)
@@ -123,14 +210,6 @@ const ProfileScreen = ({ history }) => {
                   <label style={labelStyle}>Email</label>
                   <input type='email' value={email} onChange={(e) => setEmail(e.target.value)} style={inputStyle} required />
                 </div>
-                <div>
-                  <label style={labelStyle}>Mật khẩu mới <span style={{ color: '#666', fontWeight: '400' }}>(để trống nếu không đổi)</span></label>
-                  <input type='password' placeholder='Nhập mật khẩu mới' value={password} onChange={(e) => setPassword(e.target.value)} style={inputStyle} />
-                </div>
-                <div>
-                  <label style={labelStyle}>Xác nhận mật khẩu</label>
-                  <input type='password' placeholder='Nhập lại mật khẩu mới' value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} style={inputStyle} />
-                </div>
                 <button type='submit' style={{
                   background: '#33FFCC', border: 'none', color: '#0f0f23',
                   fontWeight: '700', padding: '14px', borderRadius: '10px',
@@ -138,6 +217,105 @@ const ProfileScreen = ({ history }) => {
                 }}>
                   <i className='fas fa-save me-2'></i>Lưu thay đổi
                 </button>
+              </form>
+            )}
+          </div>
+
+          {/* MỚI (B12): Đổi mật khẩu — bắt buộc xác nhận OTP gửi qua email */}
+          <div style={sectionStyle}>
+            <h5 style={{ color: '#33FFCC', fontWeight: '700', marginBottom: '20px' }}>
+              <i className='fas fa-lock me-2'></i>Đổi mật khẩu
+            </h5>
+
+            {pwdMessage && <Message variant='danger'>{pwdMessage}</Message>}
+            {errorRequestOtp && <Message variant='danger'>{errorRequestOtp}</Message>}
+            {errorVerifyOtp && <Message variant='danger'>{errorVerifyOtp}</Message>}
+            {successVerifyOtp && <Message variant='success'>Đổi mật khẩu thành công!</Message>}
+
+            {!otpSent ? (
+              // Bước 1: nhập mật khẩu mới → gửi OTP về email
+              <form onSubmit={requestOtpHandler} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div>
+                  <label style={labelStyle}>Mật khẩu mới</label>
+                  <input
+                    type='password'
+                    placeholder='Nhập mật khẩu mới'
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    style={inputStyle}
+                  />
+                </div>
+                <div>
+                  <label style={labelStyle}>Xác nhận mật khẩu mới</label>
+                  <input
+                    type='password'
+                    placeholder='Nhập lại mật khẩu mới'
+                    value={confirmNewPassword}
+                    onChange={(e) => setConfirmNewPassword(e.target.value)}
+                    style={inputStyle}
+                  />
+                </div>
+                {loadingRequestOtp ? <Loader /> : (
+                  <button type='submit' style={{
+                    background: '#33FFCC', border: 'none', color: '#0f0f23',
+                    fontWeight: '700', padding: '14px', borderRadius: '10px',
+                    fontSize: '15px', cursor: 'pointer',
+                  }}>
+                    <i className='fas fa-paper-plane me-2'></i>Gửi mã xác nhận qua email
+                  </button>
+                )}
+              </form>
+            ) : (
+              // Bước 2: nhập mã OTP nhận được qua email để xác nhận
+              <form onSubmit={verifyOtpHandler} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <p style={{ color: '#b8bcc8', fontSize: '13px', margin: 0 }}>
+                  Mã OTP đã được gửi đến email <strong style={{ color: '#fff' }}>{email}</strong>.
+                  Vui lòng kiểm tra hộp thư (và cả mục spam) rồi nhập mã bên dưới.
+                </p>
+                <div>
+                  <label style={labelStyle}>Mã OTP</label>
+                  <input
+                    type='text'
+                    placeholder='Nhập mã 6 số'
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value)}
+                    style={{ ...inputStyle, textAlign: 'center', letterSpacing: '6px', fontSize: '18px', fontWeight: '700' }}
+                    maxLength={6}
+                  />
+                </div>
+                {loadingVerifyOtp ? <Loader /> : (
+                  <button type='submit' style={{
+                    background: '#33FFCC', border: 'none', color: '#0f0f23',
+                    fontWeight: '700', padding: '14px', borderRadius: '10px',
+                    fontSize: '15px', cursor: 'pointer',
+                  }}>
+                    <i className='fas fa-check me-2'></i>Xác nhận đổi mật khẩu
+                  </button>
+                )}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <button
+                    type='button'
+                    onClick={cancelChangePassword}
+                    style={{
+                      background: 'transparent', border: 'none', color: '#b8bcc8',
+                      fontSize: '13px', cursor: 'pointer', padding: 0,
+                    }}
+                  >
+                    <i className='fas fa-arrow-left me-1'></i>Huỷ
+                  </button>
+                  <button
+                    type='button'
+                    disabled={cooldown > 0 || loadingRequestOtp}
+                    onClick={() => dispatch(requestChangePasswordOtp(newPassword))}
+                    style={{
+                      background: 'transparent', border: 'none',
+                      color: cooldown > 0 ? '#555' : '#33FFCC',
+                      fontSize: '13px', cursor: cooldown > 0 ? 'not-allowed' : 'pointer', padding: 0,
+                    }}
+                  >
+                    {cooldown > 0 ? `Gửi lại mã (${cooldown}s)` : 'Gửi lại mã'}
+                  </button>
+                </div>
               </form>
             )}
           </div>

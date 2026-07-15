@@ -33,6 +33,12 @@ import {
   USER_RESEND_OTP_REQUEST,
   USER_RESEND_OTP_SUCCESS,
   USER_RESEND_OTP_FAIL,
+  USER_CHANGE_PWD_REQUEST_OTP_REQUEST,
+  USER_CHANGE_PWD_REQUEST_OTP_SUCCESS,
+  USER_CHANGE_PWD_REQUEST_OTP_FAIL,
+  USER_CHANGE_PWD_VERIFY_OTP_REQUEST,
+  USER_CHANGE_PWD_VERIFY_OTP_SUCCESS,
+  USER_CHANGE_PWD_VERIFY_OTP_FAIL,
 } from '../constants/userConstants'
 import { ORDER_LIST_MY_RESET } from '../constants/orderConstants'
 
@@ -65,6 +71,39 @@ export const login = (email, password) => async (dispatch) => {
     })
 
     localStorage.setItem('userInfo', JSON.stringify(data))
+  } catch (error) {
+    dispatch({
+      type: USER_LOGIN_FAIL,
+      payload:
+        error.response && error.response.data.message
+          ? error.response.data.message
+          : error.message,
+    })
+  }
+}
+
+// LOGIN VỚI GOOGLE (B11)
+// FE nhận `token` (JWT) từ query string sau khi BE redirect từ Google callback,
+// dùng token đó gọi /api/users/profile để lấy đủ thông tin user rồi lưu như
+// login thường (localStorage + USER_LOGIN_SUCCESS).
+export const loginWithGoogleToken = (token) => async (dispatch) => {
+  try {
+    dispatch({ type: USER_LOGIN_REQUEST })
+
+    const config = {
+      headers: { Authorization: `Bearer ${token}` },
+    }
+
+    const { data } = await axios.get('/api/users/profile', config)
+
+    const userData = { ...data, token }
+
+    dispatch({
+      type: USER_LOGIN_SUCCESS,
+      payload: userData,
+    })
+
+    localStorage.setItem('userInfo', JSON.stringify(userData))
   } catch (error) {
     dispatch({
       type: USER_LOGIN_FAIL,
@@ -175,6 +214,71 @@ export const resendOtp = (email) => async (dispatch) => {
       type: USER_RESEND_OTP_FAIL,
       payload: message,
     })
+  }
+}
+
+// ===== B12: Đổi mật khẩu yêu cầu xác nhận OTP qua email =====
+// Bước 1: gửi mật khẩu mới (chỉ để server validate độ dài) → server gửi OTP về email
+export const requestChangePasswordOtp = (newPassword) => async (dispatch, getState) => {
+  try {
+    dispatch({ type: USER_CHANGE_PWD_REQUEST_OTP_REQUEST })
+
+    const {
+      userLogin: { userInfo },
+    } = getState()
+
+    const config = {
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${userInfo.token}`,
+      },
+    }
+
+    const { data } = await axios.post(
+      '/api/users/change-password/request-otp',
+      { newPassword },
+      config
+    )
+
+    dispatch({ type: USER_CHANGE_PWD_REQUEST_OTP_SUCCESS, payload: data })
+  } catch (error) {
+    const message =
+      error.response && error.response.data && error.response.data.message
+        ? error.response.data.message
+        : error.message || 'Gửi mã OTP thất bại'
+    dispatch({ type: USER_CHANGE_PWD_REQUEST_OTP_FAIL, payload: message })
+  }
+}
+
+// Bước 2: gửi lại mã OTP + mật khẩu mới → server xác thực rồi mới thực sự đổi
+export const verifyChangePasswordOtp = (otp, newPassword) => async (dispatch, getState) => {
+  try {
+    dispatch({ type: USER_CHANGE_PWD_VERIFY_OTP_REQUEST })
+
+    const {
+      userLogin: { userInfo },
+    } = getState()
+
+    const config = {
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${userInfo.token}`,
+      },
+    }
+
+    const { data } = await axios.post(
+      '/api/users/change-password/verify-otp',
+      { otp, newPassword },
+      config
+    )
+
+    dispatch({ type: USER_CHANGE_PWD_VERIFY_OTP_SUCCESS, payload: data })
+  } catch (error) {
+    const message =
+      error.response && error.response.data && error.response.data.message
+        ? error.response.data.message
+        : error.message || 'Xác nhận OTP thất bại'
+    dispatch({ type: USER_CHANGE_PWD_VERIFY_OTP_FAIL, payload: message })
   }
 }
 

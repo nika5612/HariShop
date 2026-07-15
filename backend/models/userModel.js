@@ -58,6 +58,19 @@ const userSchema = mongoose.Schema(
       type: String,
       required: true,
     },
+
+    // ===== B11: Đăng nhập Google OAuth =====
+    googleId: {
+      type: String,
+      default: null,
+      unique: true,
+      sparse: true, // cho phép nhiều user có googleId = null
+    },
+    authProvider: {
+      type: String,
+      enum: ['local', 'google'],
+      default: 'local',
+    },
     isAdmin: {
       type: Boolean,
       required: true,

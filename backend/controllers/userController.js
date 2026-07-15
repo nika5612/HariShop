@@ -43,7 +43,9 @@ const hashOtp = (otp) => crypto.createHash('sha256').update(otp).digest('hex')
 const OTP_EXPIRE_MINUTES = 10
 const OTP_RESEND_COOLDOWN_SECONDS = 60
 
-const sendOtpEmail = async (user, otp) => {
+// MỚI (B12): thêm tham số `purpose` để dùng chung hàm gửi email OTP này cho
+// cả đăng ký tài khoản ('register') lẫn đổi mật khẩu ('change-password').
+const sendOtpEmail = async (user, otp, purpose = 'register') => {
   const gmailUser = (process.env.GMAIL_USER || '').trim()
   const gmailAppPassword = (process.env.GMAIL_APP_PASSWORD || '').replace(/\s+/g, '')
 
@@ -52,6 +54,17 @@ const sendOtpEmail = async (user, otp) => {
     return { emailSent: false, emailErrorMessage: 'Email chưa được cấu hình.' }
   }
 
+  const isChangePassword = purpose === 'change-password'
+  const subject = isChangePassword
+    ? 'HariShop - Mã xác nhận đổi mật khẩu (OTP)'
+    : 'HariShop - Mã xác nhận đăng ký (OTP)'
+  const introText = isChangePassword
+    ? 'Bạn (hoặc ai đó) vừa yêu cầu đổi mật khẩu cho tài khoản này. Vui lòng nhập mã OTP bên dưới để xác nhận:'
+    : 'Cảm ơn bạn đã đăng ký tài khoản tại HariShop. Vui lòng nhập mã OTP bên dưới để xác nhận email:'
+  const warningExtra = isChangePassword
+    ? '<li>Nếu bạn KHÔNG yêu cầu đổi mật khẩu, vui lòng đổi mật khẩu ngay và bỏ qua email này</li>'
+    : ''
+
   try {
     const createTransporter = (await import('../config/emailConfig.js')).default
     const transporter = createTransporter()
@@ -59,11 +72,11 @@ const sendOtpEmail = async (user, otp) => {
     await transporter.sendMail({
       from: `"HariShop" <${gmailUser}>`,
       to: user.email,
-      subject: 'HariShop - Mã xác nhận đăng ký (OTP)',
+      subject,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <h2 style="color: #33FFCC;">Chào ${user.name || 'Khách hàng'},</h2>
-          <p>Cảm ơn bạn đã đăng ký tài khoản tại HariShop. Vui lòng nhập mã OTP bên dưới để xác nhận email:</p>
+          <p>${introText}</p>
           <div style="background: #1a1a2e; color: #33FFCC; padding: 20px; border-radius: 12px;
                       text-align: center; font-size: 32px; font-weight: bold; letter-spacing: 8px;
                       border: 2px solid #33FFCC; margin: 20px 0;">
@@ -73,6 +86,7 @@ const sendOtpEmail = async (user, otp) => {
           <ul style="color: #b8bcc8;">
             <li>Mã có hiệu lực trong ${OTP_EXPIRE_MINUTES} phút</li>
             <li>Không chia sẻ mã này cho bất kỳ ai</li>
+            ${warningExtra}
             <li>Nếu bạn không thực hiện yêu cầu này, vui lòng bỏ qua email</li>
           </ul>
           <hr style="border: none; border-top: 1px solid #333; margin: 30px 0;">
@@ -401,6 +415,94 @@ const getUserProfile = asyncHandler(async (req, res) => {
   }
 })
 
+/* ===================== B12: ĐỔI MẬT KHẨU YÊU CẦU OTP ===================== */
+// Bước 1: user đang đăng nhập, nhập mật khẩu mới → gọi API này để gửi OTP
+// về email đã đăng ký. KHÔNG lưu mật khẩu mới vào DB ở bước này (chỉ dùng để
+// validate độ dài cho UX tốt hơn) — mật khẩu mới được giữ tạm ở phía frontend
+// (state) và gửi lại kèm OTP ở bước xác nhận, tránh lưu password chưa xác
+// thực xuống database.
+const requestChangePasswordOtp = asyncHandler(async (req, res) => {
+  const { newPassword } = req.body
+
+  if (!newPassword || newPassword.length < 6) {
+    res.status(400)
+    throw new Error('Mật khẩu mới phải có ít nhất 6 ký tự.')
+  }
+
+  const user = await User.findById(req.user._id)
+  if (!user) {
+    res.status(404)
+    throw new Error('Không tìm thấy người dùng.')
+  }
+
+  // Chống spam: áp dụng cùng cooldown với OTP đăng ký
+  if (user.otpLastSentAt) {
+    const secondsSinceLastSend = (Date.now() - new Date(user.otpLastSentAt).getTime()) / 1000
+    if (secondsSinceLastSend < OTP_RESEND_COOLDOWN_SECONDS) {
+      res.status(429)
+      throw new Error(
+        `Vui lòng đợi ${Math.ceil(OTP_RESEND_COOLDOWN_SECONDS - secondsSinceLastSend)} giây trước khi gửi lại mã.`
+      )
+    }
+  }
+
+  const otp = generateOtp()
+  user.otpCode = hashOtp(otp)
+  user.otpExpire = Date.now() + OTP_EXPIRE_MINUTES * 60 * 1000
+  user.otpLastSentAt = Date.now()
+  await user.save()
+
+  const { emailSent, emailErrorMessage } = await sendOtpEmail(user, otp, 'change-password')
+
+  res.json({
+    emailSent,
+    cooldownSeconds: OTP_RESEND_COOLDOWN_SECONDS,
+    message: emailSent
+      ? 'Mã OTP đã được gửi đến email của bạn. Vui lòng kiểm tra hộp thư.'
+      : `Không gửi được email OTP. ${emailErrorMessage || ''}`.trim(),
+  })
+})
+
+// Bước 2: user nhập OTP nhận được + gửi lại newPassword → xác thực rồi mới
+// thực sự lưu mật khẩu mới.
+const verifyChangePasswordOtp = asyncHandler(async (req, res) => {
+  const { otp, newPassword } = req.body
+
+  if (!otp || !newPassword) {
+    res.status(400)
+    throw new Error('Vui lòng nhập mã OTP và mật khẩu mới.')
+  }
+  if (newPassword.length < 6) {
+    res.status(400)
+    throw new Error('Mật khẩu mới phải có ít nhất 6 ký tự.')
+  }
+
+  const user = await User.findById(req.user._id)
+  if (!user) {
+    res.status(404)
+    throw new Error('Không tìm thấy người dùng.')
+  }
+
+  if (!user.otpCode || !user.otpExpire || user.otpExpire < Date.now()) {
+    res.status(400)
+    throw new Error('Mã OTP đã hết hạn. Vui lòng bấm gửi lại mã.')
+  }
+
+  if (hashOtp(otp.toString().trim()) !== user.otpCode) {
+    res.status(400)
+    throw new Error('Mã OTP không chính xác.')
+  }
+
+  // OTP hợp lệ → đổi mật khẩu thật sự (pre('save') trong userModel sẽ tự hash)
+  user.password = newPassword
+  user.otpCode = undefined
+  user.otpExpire = undefined
+  user.otpLastSentAt = undefined
+  await user.save()
+
+  res.json({ message: 'Đổi mật khẩu thành công.' })
+})
+
 const updateUserProfile = asyncHandler(async (req, res) => {
   const user = await User.findById(req.user._id)
 
@@ -408,9 +510,8 @@ const updateUserProfile = asyncHandler(async (req, res) => {
     user.name = req.body.name || user.name
     user.email = req.body.email || user.email
 
-    if (req.body.password) {
-      user.password = req.body.password
-    }
+    // MỚI (B12): bỏ đổi mật khẩu trực tiếp ở đây — giờ phải qua luồng OTP
+    // (requestChangePasswordOtp + verifyChangePasswordOtp) để bảo mật hơn.
 
     const updatedUser = await user.save()
 
@@ -633,6 +734,8 @@ export {
   resetPassword,
   getUserProfile,
   updateUserProfile,
+  requestChangePasswordOtp,
+  verifyChangePasswordOtp,
   addAddress,
   deleteAddress,
   setDefaultAddress,

@@ -69,6 +69,11 @@ const ProductScreen = ({ history, match }) => {
     setTimeout(() => setSuccessAddToCart(false), 3000)
   }
 
+  // MỚI: ảnh chính sẽ đổi theo màu đang chọn — nếu màu đó có ảnh riêng thì
+  // hiển thị ảnh đó, không thì dùng ảnh mặc định của sản phẩm.
+  const selectedColorImage = product?.colors?.find((c) => c.name === color)?.image
+  const displayImage = selectedColorImage || product?.image
+
   const buyNowHandler = () => {
     // Buy Now bypass cart: navigate with params
     const params = new URLSearchParams({
@@ -136,7 +141,7 @@ const ProductScreen = ({ history, match }) => {
             <Col md={5}>
               <div style={{ position: 'relative' }}>
                 <img
-                  src={product.image}
+                  src={displayImage}
                   alt={product.name}
                   style={{
                     width: '100%',

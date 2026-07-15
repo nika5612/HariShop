@@ -31,6 +31,8 @@ import notificationRoutes from './routes/notificationRoutes.js'
 import chatRoutes from './routes/chatRoutes.js'
 import { initSocket } from './socket.js'
 import { notFound, errorHandler } from './middleware/errorMiddleware.js'
+import passport, { configureGoogleStrategy } from './config/passport.js' // B11: Google OAuth
+import { configureCloudinary } from './config/cloudinary.js' // B10: Cloudinary
 // ✅ XÓA import transporter ở đây
 import Settings from './models/settingsModel.js'
 
@@ -156,10 +158,18 @@ async function ensureDefaultWarehouseSettings() {
   )
 }
 
+// B11: Khởi tạo GoogleStrategy TẠI ĐÂY (sau dotenv.config() ở trên) để
+// process.env.GOOGLE_CLIENT_ID/SECRET chắc chắn đã có giá trị.
+configureGoogleStrategy()
+
+// B10: Tương tự, cấu hình Cloudinary SAU dotenv.config() (không phải lúc import)
+configureCloudinary()
+
 const app = express()
 
 // Middleware
 app.use(express.json())
+app.use(passport.initialize()) // B11: Google OAuth (stateless, không dùng session)
 
 if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'))

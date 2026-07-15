@@ -15,6 +15,7 @@ import ProductScreen from './screens/ProductScreen'
 import CartScreen from './screens/CartScreen'
 import LoginScreen from './screens/LoginScreen'
 import RegisterScreen from './screens/RegisterScreen'
+import GoogleAuthScreen from './screens/GoogleAuthScreen'
 import VerifyOtpScreen from './screens/VerifyOtpScreen'
 import ForgotPasswordScreen from './screens/ForgotPasswordScreen'
 import ResetPasswordScreen from './screens/ResetPasswordScreen'
@@ -82,6 +83,7 @@ const App = () => {
           {/* ===== AUTH / USER ===== */}
           <Route path='/login' component={LoginScreen} />
           <Route path='/register' component={RegisterScreen} />
+          <Route path='/google-auth' component={GoogleAuthScreen} />
           <Route path='/verify-otp' component={VerifyOtpScreen} />
           <Route path='/forgotpassword' component={ForgotPasswordScreen} />
           <Route path='/resetpassword/:token' component={ResetPasswordScreen} />
@@ -128,11 +130,8 @@ const App = () => {
         </Container>
       </main>
       <Footer />
-      {/* MỚI (B2): Chatbot AI tư vấn sản phẩm — nổi góc phải, ẩn ở khu vực Admin */}
       <ChatWidget />
-      {/* MỚI (B7): Thanh so sánh sản phẩm nổi ở dưới màn hình */}
       <CompareBar />
-      {/* MỚI (B9): Quản lý kết nối Socket.io + nhận thông báo real-time */}
       <SocketManager />
     </Router>
   )

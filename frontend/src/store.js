@@ -39,6 +39,8 @@ import {
   userVerifyOtpReducer,
   userResendOtpReducer,
   userUnlockCodReducer,
+  userChangePasswordRequestOtpReducer,
+  userChangePasswordVerifyOtpReducer,
 } from './reducers/userReducers'
 
 // ORDER
@@ -143,6 +145,8 @@ const reducer = combineReducers({
   userVerifyOtp: userVerifyOtpReducer,
   userResendOtp: userResendOtpReducer,
   userUnlockCod: userUnlockCodReducer,
+  userChangePasswordRequestOtp: userChangePasswordRequestOtpReducer,
+  userChangePasswordVerifyOtp: userChangePasswordVerifyOtpReducer,
 
   shippingQuotes: shippingQuotesReducer,
   shippingTrack: shippingTrackReducer,

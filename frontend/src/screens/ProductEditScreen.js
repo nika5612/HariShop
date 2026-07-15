@@ -33,6 +33,10 @@ const ProductEditScreen = ({ match, history }) => {
   const [colorHex, setColorHex] = useState('#888888')
   const [colorStock, setColorStock] = useState(0)
   const [colorError, setColorError] = useState('')
+  // MỚI: ảnh riêng cho màu đang chuẩn bị thêm + trạng thái upload theo từng dòng màu đã thêm
+  const [colorImage, setColorImage] = useState('')
+  const [colorImageUploading, setColorImageUploading] = useState(false)
+  const [uploadingColorIndex, setUploadingColorIndex] = useState(null)
 
   // ── SỬA BUG: tồn kho thủ công cho sản phẩm KHÔNG dùng biến thể màu ──
   const [manualStock, setManualStock] = useState(0)
@@ -144,6 +148,44 @@ const ProductEditScreen = ({ match, history }) => {
   // Tổng stock từ tất cả màu
   const totalStock = colors.reduce((sum, c) => sum + Number(c.countInStock), 0)
 
+  // MỚI: upload ảnh riêng cho màu đang chuẩn bị thêm (form "+ Thêm màu mới")
+  const uploadColorImageHandler = async (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    const formData = new FormData()
+    formData.append('image', file)
+    setColorImageUploading(true)
+    try {
+      const config = { headers: { 'Content-Type': 'multipart/form-data' } }
+      const { data } = await axios.post('/api/upload', formData, config)
+      setColorImage(data)
+    } catch (error) {
+      console.error(error)
+      alert('Tải ảnh cho màu thất bại.')
+    } finally {
+      setColorImageUploading(false)
+    }
+  }
+
+  // MỚI: upload/thay ảnh cho 1 màu ĐÃ có trong danh sách
+  const uploadExistingColorImageHandler = async (index, e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    const formData = new FormData()
+    formData.append('image', file)
+    setUploadingColorIndex(index)
+    try {
+      const config = { headers: { 'Content-Type': 'multipart/form-data' } }
+      const { data } = await axios.post('/api/upload', formData, config)
+      setColors((prev) => prev.map((c, i) => (i === index ? { ...c, image: data } : c)))
+    } catch (error) {
+      console.error(error)
+      alert('Tải ảnh cho màu thất bại.')
+    } finally {
+      setUploadingColorIndex(null)
+    }
+  }
+
   const addColor = () => {
     if (!colorName.trim()) {
       setColorError('Vui lòng nhập tên màu')
@@ -159,11 +201,12 @@ const ProductEditScreen = ({ match, history }) => {
     setColorError('')
     setColors([
       ...colors,
-      { name: colorName.trim(), hexCode: colorHex, countInStock: Number(colorStock) },
+      { name: colorName.trim(), hexCode: colorHex, countInStock: Number(colorStock), image: colorImage },
     ])
     setColorName('')
     setColorHex('#888888')
     setColorStock(0)
+    setColorImage('')
   }
 
   const removeColor = (index) => {
@@ -350,6 +393,38 @@ const ProductEditScreen = ({ match, history }) => {
                         border: '2px solid rgba(255,255,255,0.4)',
                         flexShrink: 0,
                       }} />
+                      {/* MỚI: Thumbnail ảnh riêng của màu + nút đổi ảnh */}
+                      <div style={{ position: 'relative', flexShrink: 0 }}>
+                        <label style={{ cursor: 'pointer', margin: 0 }} title='Bấm để đổi ảnh riêng cho màu này'>
+                          {c.image ? (
+                            <img
+                              src={c.image}
+                              alt={c.name}
+                              style={{ width: 32, height: 32, borderRadius: 6, objectFit: 'cover', border: '1px solid rgba(51,255,204,0.4)' }}
+                            />
+                          ) : (
+                            <div style={{
+                              width: 32, height: 32, borderRadius: 6,
+                              border: '1px dashed rgba(255,255,255,0.3)',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              fontSize: 14, color: '#666',
+                            }}>
+                              <i className='fas fa-image'></i>
+                            </div>
+                          )}
+                          <input
+                            type='file'
+                            accept='image/*'
+                            onChange={(e) => uploadExistingColorImageHandler(i, e)}
+                            style={{ display: 'none' }}
+                          />
+                        </label>
+                        {uploadingColorIndex === i && (
+                          <div style={{ position: 'absolute', top: -4, right: -4, fontSize: 10, color: '#33FFCC' }}>
+                            <i className='fas fa-spinner fa-spin'></i>
+                          </div>
+                        )}
+                      </div>
                       <span style={{ color: '#eef0f7', flex: 1, fontSize: 14 }}>
                         {c.name}
                       </span>
@@ -423,6 +498,34 @@ const ProductEditScreen = ({ match, history }) => {
                       onChange={(e) => setColorStock(e.target.value)}
                       style={{ ...inputStyle, fontSize: 13 }}
                     />
+                  </div>
+                  {/* MỚI: Ảnh riêng cho màu (tuỳ chọn) */}
+                  <div style={{ flexShrink: 0 }}>
+                    <div style={{ fontSize: 11, color: '#aaa', marginBottom: 3 }}>Ảnh màu (tuỳ chọn)</div>
+                    <label style={{ cursor: 'pointer', margin: 0, display: 'block' }}>
+                      {colorImage ? (
+                        <img
+                          src={colorImage}
+                          alt='preview'
+                          style={{ width: 38, height: 38, borderRadius: 6, objectFit: 'cover', border: '1px solid rgba(51,255,204,0.4)' }}
+                        />
+                      ) : (
+                        <div style={{
+                          width: 38, height: 38, borderRadius: 6,
+                          border: '1px dashed rgba(51,255,204,0.35)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: 14, color: '#33FFCC', background: '#0f0f23',
+                        }}>
+                          {colorImageUploading ? <i className='fas fa-spinner fa-spin'></i> : <i className='fas fa-plus'></i>}
+                        </div>
+                      )}
+                      <input
+                        type='file'
+                        accept='image/*'
+                        onChange={uploadColorImageHandler}
+                        style={{ display: 'none' }}
+                      />
+                    </label>
                   </div>
                   <Button
                     variant='outline-info'

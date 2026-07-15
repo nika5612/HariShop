@@ -40,6 +40,14 @@ import {
   USER_RESEND_OTP_REQUEST,
   USER_RESEND_OTP_SUCCESS,
   USER_RESEND_OTP_FAIL,
+  USER_CHANGE_PWD_REQUEST_OTP_REQUEST,
+  USER_CHANGE_PWD_REQUEST_OTP_SUCCESS,
+  USER_CHANGE_PWD_REQUEST_OTP_FAIL,
+  USER_CHANGE_PWD_REQUEST_OTP_RESET,
+  USER_CHANGE_PWD_VERIFY_OTP_REQUEST,
+  USER_CHANGE_PWD_VERIFY_OTP_SUCCESS,
+  USER_CHANGE_PWD_VERIFY_OTP_FAIL,
+  USER_CHANGE_PWD_VERIFY_OTP_RESET,
 } from '../constants/userConstants'
 
 export const userLoginReducer = (state = {}, action) => {
@@ -95,6 +103,37 @@ export const userResendOtpReducer = (state = {}, action) => {
       return { loading: false, success: true, data: action.payload }
     case USER_RESEND_OTP_FAIL:
       return { loading: false, error: action.payload }
+    default:
+      return state
+  }
+}
+
+// ===== B12: Đổi mật khẩu yêu cầu xác nhận OTP qua email =====
+export const userChangePasswordRequestOtpReducer = (state = {}, action) => {
+  switch (action.type) {
+    case USER_CHANGE_PWD_REQUEST_OTP_REQUEST:
+      return { loading: true }
+    case USER_CHANGE_PWD_REQUEST_OTP_SUCCESS:
+      return { loading: false, success: true, data: action.payload }
+    case USER_CHANGE_PWD_REQUEST_OTP_FAIL:
+      return { loading: false, error: action.payload }
+    case USER_CHANGE_PWD_REQUEST_OTP_RESET:
+      return {}
+    default:
+      return state
+  }
+}
+
+export const userChangePasswordVerifyOtpReducer = (state = {}, action) => {
+  switch (action.type) {
+    case USER_CHANGE_PWD_VERIFY_OTP_REQUEST:
+      return { loading: true }
+    case USER_CHANGE_PWD_VERIFY_OTP_SUCCESS:
+      return { loading: false, success: true, data: action.payload }
+    case USER_CHANGE_PWD_VERIFY_OTP_FAIL:
+      return { loading: false, error: action.payload }
+    case USER_CHANGE_PWD_VERIFY_OTP_RESET:
+      return {}
     default:
       return state
   }
