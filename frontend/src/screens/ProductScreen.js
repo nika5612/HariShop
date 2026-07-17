@@ -25,8 +25,6 @@ const ProductScreen = ({ history, match }) => {
   const [comment, setComment] = useState('')
   // MỚI (B8): khi đếm ngược về 0 ngay trên màn hình, ẩn giá giảm/badge NGAY LẬP TỨC
   const [flashSaleExpired, setFlashSaleExpired] = useState(false)
-  
-  const colors = ['Đen', 'Trắng', 'Xanh dương', 'Bạc', 'Vàng', 'Đỏ']
 
   const dispatch = useDispatch()
 

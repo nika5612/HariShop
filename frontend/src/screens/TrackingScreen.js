@@ -10,6 +10,7 @@ const carrierLabel = (carrier) => {
   switch (carrier) {
     case 'ghn': return 'GHN'
     case 'viettelpost': return 'Viettel Post'
+    case 'ghtk': return 'GHTK'
     case 'fallback': return 'Tạm tính'
     default: return carrier || '—'
   }
@@ -106,6 +107,7 @@ const TrackingScreen = ({ match }) => {
           }}>
             <option value='ghn'>GHN</option>
             <option value='viettelpost'>Viettel Post</option>
+            <option value='ghtk'>GHTK</option>
           </select>
           <input value={manualTrackingId} onChange={(e) => setManualTrackingId(e.target.value)} placeholder='Nhập mã vận đơn...'
             style={{
@@ -164,4 +166,3 @@ const TrackingScreen = ({ match }) => {
 }
 
 export default TrackingScreen
-

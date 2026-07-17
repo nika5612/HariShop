@@ -483,9 +483,6 @@ const updateProduct = asyncHandler(async (req, res) => {
     countInStock // fallback
   } = req.body
 
-  // 🐛 DEBUG TẠM THỜI — xoá sau khi tìm ra lỗi
-  console.log('🐛 [DEBUG] req.body.specs nhận được:', JSON.stringify(specs))
-
   const product = await Product.findById(req.params.id)
 
   if (product) {
@@ -528,14 +525,7 @@ const updateProduct = asyncHandler(async (req, res) => {
     // ── MỚI (B8): cập nhật Flash Sale ────────────────────────────
     product.flashSale = normalizeFlashSale(flashSale)
 
-    // 🐛 DEBUG TẠM THỜI — xoá sau khi tìm ra lỗi
-    console.log('🐛 [DEBUG] product.specs SAU khi gán:', JSON.stringify(product.specs))
-    console.log('🐛 [DEBUG] isModified specs:', product.isModified('specs'))
-
     const updatedProduct = await product.save()
-
-    // 🐛 DEBUG TẠM THỜI — xoá sau khi tìm ra lỗi
-    console.log('🐛 [DEBUG] updatedProduct.specs SAU KHI SAVE:', JSON.stringify(updatedProduct.specs))
 
     res.json(attachFlashSale(updatedProduct.toObject()))
   } else {

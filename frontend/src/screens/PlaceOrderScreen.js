@@ -57,26 +57,6 @@ const PlaceOrderScreen = ({ history }) => {
     return Number(num).toLocaleString('vi-VN')
   }
 
-  // Calculate prices
-  const addDecimals = (num) => {
-    return (Math.round(num * 100) / 100).toFixed(2)
-  }
-
-  // Tính tiền dựa trên danh sách orderItems (đã lọc)
-  const itemsPrice = addDecimals(
-    orderItems.reduce((acc, item) => acc + item.price * item.qty, 0)
-  )
-
-  const shippingPrice = addDecimals(itemsPrice > 1000000 ? 0 : 30000)
-  const taxPrice = addDecimals(Number((0.1 * itemsPrice).toFixed(2)))
-
-  const totalPrice = (
-    Number(itemsPrice) +
-    Number(shippingPrice) +
-    Number(taxPrice)
-  ).toFixed(2)
-
-
   const orderCreate = useSelector((state) => state.orderCreate)
   const { order, success, error } = orderCreate
 

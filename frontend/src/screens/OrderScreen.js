@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { Row, Col } from 'react-bootstrap'
 import { useDispatch, useSelector } from 'react-redux'
@@ -68,6 +68,7 @@ const carrierLabel = (carrier) => {
   switch (carrier) {
     case 'ghn': return 'GHN'
     case 'viettelpost': return 'Viettel Post'
+    case 'ghtk': return 'GHTK'
     case 'fallback': return 'Tạm tính'
     default: return carrier
   }
@@ -182,7 +183,6 @@ const OrderTimeline = ({ order, isAdmin }) => {
         {STATUS_STEPS.map((step, i) => {
           const isDone = !isBranch && i < currentIndex
           const isCurrent = !isBranch && i === currentIndex
-          const isFuture = isBranch || i > currentIndex
           const eventInfo = historyMap[step.key]
 
           const dotColor = isCurrent ? '#33FFCC' : isDone ? '#4cdb80' : '#3a3a55'

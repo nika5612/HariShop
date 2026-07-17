@@ -6,6 +6,7 @@ import axios from 'axios'
 import Message from '../components/Message'
 import Loader from '../components/Loader'
 import FormContainer from '../components/FormContainer'
+import PasswordInput from '../components/PasswordInput'
 import { register } from '../actions/userActions'
 
 const validateEmail = (email) => {
@@ -304,8 +305,7 @@ const RegisterScreen = ({ location, history }) => {
 
         <Form.Group controlId='password' style={{ marginBottom: '1.5rem' }}>
           <Form.Label style={labelStyle}>Mật khẩu *</Form.Label>
-          <Form.Control
-            type='password'
+          <PasswordInput
             placeholder='Tạo mật khẩu mạnh (ít nhất 6 ký tự)'
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -318,8 +318,7 @@ const RegisterScreen = ({ location, history }) => {
 
         <Form.Group controlId='confirmPassword' style={{ marginBottom: '1.5rem' }}>
           <Form.Label style={labelStyle}>Nhập lại mật khẩu *</Form.Label>
-          <Form.Control
-            type='password'
+          <PasswordInput
             placeholder='Xác nhận mật khẩu'
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}

@@ -8,11 +8,18 @@ import { createNotification } from './notificationController.js'
 import { computeFlashSale } from '../utils/flashSale.js'
 
 
-const USE_SANDBOX = (process.env.GHN_USE_SANDBOX || '').trim() === 'true'
-
-const GHN_BASE_URL = USE_SANDBOX
-  ? 'https://dev-online-gateway.ghn.vn/shiip/public-api'
-  : 'https://online-gateway.ghn.vn/shiip/public-api'
+// ĐÃ SỬA: KHÔNG tính USE_SANDBOX/GHN_BASE_URL là `const` ở top-level — ES
+// Modules nạp file này TRƯỚC khi dotenv.config() chạy trong server.js, nên
+// process.env.GHN_USE_SANDBOX luôn undefined tại thời điểm đó, làm giá trị
+// bị "đóng băng" là false vĩnh viễn dù .env ghi true. Phải bọc trong hàm.
+function isSandbox() {
+  return (process.env.GHN_USE_SANDBOX || '').trim() === 'true'
+}
+function getGhnBaseUrl() {
+  return isSandbox()
+    ? 'https://dev-online-gateway.ghn.vn/shiip/public-api'
+    : 'https://online-gateway.ghn.vn/shiip/public-api'
+}
 
 function ghnCredentials() {
   const trim = (keys) => {
@@ -22,10 +29,10 @@ function ghnCredentials() {
     }
     return ''
   }
-  const token = USE_SANDBOX
+  const token = isSandbox()
     ? trim(['GHN_TOKEN_DEV'])
     : trim(['GHN_TOKEN', 'TOKEN_GHN'])
-  const shopId = USE_SANDBOX
+  const shopId = isSandbox()
     ? trim(['GHN_SHOP_ID_DEV'])
     : trim(['GHN_SHOP_ID', 'ID_GHN'])
   return { token, shopId }
@@ -34,7 +41,7 @@ function ghnCredentials() {
 async function ghnFetchJson(path, { token, shopId, method = 'POST', body } = {}) {
   const headers = { 'Content-Type': 'application/json', Token: token }
   if (shopId) headers.ShopId = String(shopId)
-  const res = await fetch(`${GHN_BASE_URL}${path}`, {
+  const res = await fetch(`${getGhnBaseUrl()}${path}`, {
     method,
     headers,
     body: body ? JSON.stringify(body) : undefined,
@@ -106,6 +113,88 @@ async function createGHNOrder(order, warehouseAddress) {
     return res?.data || null
   } catch (e) {
     console.error('❌ GHN create order failed:', e.message)
+    return null
+  }
+}
+
+// MỚI: Tạo đơn thật lên GHTK (giống createGHNOrder nhưng theo đúng API GHTK).
+// Khác GHN: GHTK dùng TÊN Tỉnh/Huyện/Xã dạng chữ, không dùng mã số.
+async function createGHTKOrder(order, warehouseAddress) {
+  const token = (process.env.GHTK_TOKEN || '').trim()
+  if (!token) {
+    console.warn('⚠️ GHTK_TOKEN chưa cấu hình — bỏ qua tạo vận đơn GHTK')
+    return null
+  }
+
+  const addr = order.shippingAddress
+  const pickProvince = warehouseAddress?.province || ''
+  const pickDistrict = warehouseAddress?.district || ''
+
+  if (!pickProvince || !pickDistrict || !addr?.province || !addr?.district) {
+    console.warn('⚠️ Thiếu tên Tỉnh/Huyện (kho hàng hoặc địa chỉ giao) — bỏ qua tạo vận đơn GHTK')
+    return null
+  }
+
+  // GHTK dùng KG cho trọng lượng sản phẩm trong payload đơn hàng (khác API tính
+  // phí dùng gram) — order.totalWeight của bạn đang lưu theo gram nên đổi lại.
+  const rawCodAmount = order.paymentMethod === 'cod' ? Number(order.totalPrice || 0) : 0
+  // GHTK quy định COD tối đa 50 triệu/đơn (khác giới hạn 300k tự đặt cho GHN ở trên)
+  const codAmount = Math.min(rawCodAmount, 50000000)
+
+  // Mã đơn nội bộ gửi cho GHTK — phải DUY NHẤT, dùng luôn _id đơn hàng của mình
+  const partnerOrderId = `HS-${order._id}`
+
+  const payload = {
+    products: (order.orderItems || []).map((item) => ({
+      name: String(item.name || 'Sản phẩm'),
+      weight: Math.max(0.001, Number(item.weight || 200) / 1000), // gram → kg
+      quantity: Number(item.qty || 1),
+      product_code: String(item.product || ''),
+    })),
+    order: {
+      id: partnerOrderId,
+      pick_name: warehouseAddress?.fullName || 'HariShop',
+      pick_address: warehouseAddress?.detail || '',
+      pick_province: pickProvince,
+      pick_district: pickDistrict,
+      pick_ward: warehouseAddress?.ward || '',
+      pick_tel: warehouseAddress?.phone || '',
+      tel: addr.phone || '',
+      name: addr.fullName || '',
+      address: addr.detail || '',
+      province: addr.province,
+      district: addr.district,
+      ward: addr.ward || '',
+      hamlet: 'Khác',
+      is_freeship: '1', // phí ship đã tính riêng trong đơn của mình, GHTK chỉ thu đúng pick_money
+      pick_money: codAmount,
+      note: order.shopMessage || '',
+      value: Math.min(Number(order.itemsPrice || 0), 50000000),
+      transport: 'road',
+    },
+  }
+
+  const headers = { 'Content-Type': 'application/json', Token: token }
+  // ⚠️ Một số tài khoản GHTK (đối tác chính thức) bắt buộc thêm header này khi
+  // TẠO ĐƠN thật (khác API tính phí không cần). Nếu GHTK báo lỗi thiếu thông
+  // tin đối tác, cần xin mã X-Client-Source từ GHTK rồi điền GHTK_PARTNER_CODE.
+  const partnerCode = (process.env.GHTK_PARTNER_CODE || '').trim()
+  if (partnerCode) headers['X-Client-Source'] = partnerCode
+
+  try {
+    const res = await fetch('https://services.giaohangtietkiem.vn/services/shipment/order/?ver=1.5', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok || !data?.success) {
+      throw new Error(data?.message || `GHTK error (HTTP ${res.status})`)
+    }
+    console.log('✅ GHTK order created:', data?.order?.label)
+    return { ...data?.order, partnerOrderId } || null
+  } catch (e) {
+    console.error('❌ GHTK create order failed:', e.message)
     return null
   }
 }
@@ -300,7 +389,6 @@ const handleCodRestrictionOnStatusChange = async (order, status) => {
 }
 
 const addOrderItems = asyncHandler(async (req, res) => {
-  console.log('=== BACKEND RECEIVED ===', JSON.stringify(req.body, null, 2))
   const {
     orderItems,
     shippingAddress,
@@ -474,7 +562,9 @@ const addOrderItems = asyncHandler(async (req, res) => {
 
 
 
-  if (shippingProvider === 'ghn' || USE_SANDBOX) {
+  // ĐÃ SỬA: bỏ '|| USE_SANDBOX' — trước đây nếu bật sandbox sẽ LUÔN cố tạo
+  // đơn GHN bất kể khách chọn hãng nào (kể cả GHTK/VTP), là lỗi logic thừa.
+  if (shippingProvider === 'ghn') {
     try {
       const settings = await Settings.findOne({ key: 'global' }).lean().catch(() => null)
       const warehouseAddress = settings?.warehouseAddress || null
@@ -489,6 +579,24 @@ const addOrderItems = asyncHandler(async (req, res) => {
       }
     } catch (e) {
       console.error('❌ Lỗi tạo vận đơn GHN (non-fatal):', e.message)
+    }
+  }
+
+  // MỚI: Tạo vận đơn thật lên GHTK khi khách chọn GHTK lúc checkout
+  if (shippingProvider === 'ghtk') {
+    try {
+      const settings = await Settings.findOne({ key: 'global' }).lean().catch(() => null)
+      const warehouseAddress = settings?.warehouseAddress || null
+
+      const ghtkData = await createGHTKOrder(createdOrder, warehouseAddress)
+      if (ghtkData?.label) {
+        createdOrder.ghtkLabelCode = ghtkData.label
+        createdOrder.ghtkPartnerId = ghtkData.partnerOrderId || ''
+        await createdOrder.save()
+        console.log('✅ Lưu ghtkLabelCode vào order:', ghtkData.label)
+      }
+    } catch (e) {
+      console.error('❌ Lỗi tạo vận đơn GHTK (non-fatal):', e.message)
     }
   }
 
@@ -695,6 +803,53 @@ const GHN_TO_ORDER_STATUS = {
   cancel:        'cancelled',
 }
 
+// MỚI: Tách phần "gọi GHN lấy trạng thái mới nhất + tự cập nhật đơn hàng nội
+// bộ" ra hàm riêng — dùng chung cho cả 2 luồng:
+//  1) trackOrder (thủ công — khách/admin bấm nút "Theo dõi vận chuyển")
+//  2) autoSyncPendingGHNOrders (tự động — chạy định kỳ nền, xem cuối file)
+// Hàm này KHÔNG đụng tới req/res, chỉ nhận vào 1 document Order và trả về
+// dữ liệu tracking để nơi gọi tự quyết định làm gì tiếp (render JSON, log...).
+async function syncOrderStatusFromGHN(order) {
+  const orderCode = order.ghnOrderCode
+  if (!orderCode) {
+    return { available: false, reason: 'Đơn hàng chưa có mã vận đơn GHN' }
+  }
+
+  const { token } = ghnCredentials()
+  const data = await ghnFetchJson('/v2/shipping-order/detail', {
+    token, method: 'POST', body: { order_code: orderCode },
+  })
+  const ghnOrder = Array.isArray(data?.data) ? data.data[0] : data?.data
+  const log = Array.isArray(ghnOrder?.log) ? ghnOrder.log : []
+  const events = log.map((l) => ({
+    status:      l?.status || '',
+    description: l?.status || '',
+    location:    '',
+    time:        l?.updated_date ? new Date(l.updated_date).toISOString() : null,
+  }))
+
+  // Tự động cập nhật status nội bộ theo GHN nếu khác
+  const mappedStatus = GHN_TO_ORDER_STATUS[ghnOrder?.status]
+  let statusChanged = false
+  if (mappedStatus && mappedStatus !== order.status && !order.isCancelled) {
+    pushStatusHistory(order, mappedStatus, `Tự động cập nhật từ GHN (${ghnOrder?.status})`)
+    await order.save()
+    await notifyCustomerOrderStatus(order, mappedStatus)
+    await handleCodRestrictionOnStatusChange(order, mappedStatus)
+    statusChanged = true
+  }
+
+  return {
+    available: true,
+    orderCode,
+    trackingUrl: order.ghnTrackingUrl || `https://tracking.ghn.dev/?order_code=${orderCode}`,
+    currentStatus: ghnOrder?.status || '',
+    events,
+    estimatedDelivery: order.shippingEtaDate || null,
+    statusChanged,
+  }
+}
+
 // @desc    Track GHN shipment for an order
 // @route   GET /api/orders/:id/track
 // @access  Private
@@ -705,8 +860,7 @@ const trackOrder = asyncHandler(async (req, res) => {
     res.status(401); throw new Error('Không có quyền xem đơn hàng này')
   }
 
-  const orderCode = order.ghnOrderCode
-  if (!orderCode) {
+  if (!order.ghnOrderCode) {
     return res.json({
       available: false,
       reason: 'Đơn hàng chưa có mã vận đơn GHN',
@@ -721,43 +875,50 @@ const trackOrder = asyncHandler(async (req, res) => {
   }
 
   try {
-    const { token } = ghnCredentials()
-    const data = await ghnFetchJson('/v2/shipping-order/detail', {
-      token, method: 'POST', body: { order_code: orderCode },
-    })
-    const ghnOrder = Array.isArray(data?.data) ? data.data[0] : data?.data
-    const log = Array.isArray(ghnOrder?.log) ? ghnOrder.log : []
-    const events = log.map((l) => ({
-      status:      l?.status || '',
-      description: l?.status || '',
-      location:    '',
-      time:        l?.updated_date ? new Date(l.updated_date).toISOString() : null,
-    }))
-
-    // ── MỚI (A3): tự động cập nhật status nội bộ theo GHN nếu khác ──
-    const mappedStatus = GHN_TO_ORDER_STATUS[ghnOrder?.status]
-    if (mappedStatus && mappedStatus !== order.status && !order.isCancelled) {
-      pushStatusHistory(order, mappedStatus, `Tự động cập nhật từ GHN (${ghnOrder?.status})`)
-      await order.save()
-      // ── MỚI: thông báo cho KHÁCH HÀNG ────────────────────────
-      await notifyCustomerOrderStatus(order, mappedStatus)
-      // ── MỚI (B1): xử lý hạn chế COD theo trạng thái mới từ GHN ──
-      await handleCodRestrictionOnStatusChange(order, mappedStatus)
-    }
-
-    res.json({
-      available: true,
-      orderCode,
-      trackingUrl: order.ghnTrackingUrl || `https://tracking.ghn.dev/?order_code=${orderCode}`,
-      currentStatus: ghnOrder?.status || '',
-      events,
-      estimatedDelivery: order.shippingEtaDate || null,
-    })
+    const result = await syncOrderStatusFromGHN(order)
+    res.json(result)
   } catch (e) {
     console.error('❌ GHN track error:', e.message)
     res.status(500); throw new Error(`Không thể theo dõi đơn hàng: ${e.message}`)
   }
 })
+
+// MỚI: Tự động đồng bộ trạng thái cho TẤT CẢ đơn đang giao qua GHN, chạy định
+// kỳ nền (xem lịch chạy trong server.js). Chỉ xử lý đơn:
+//  - có ghnOrderCode (đã tạo vận đơn GHN thật)
+//  - chưa huỷ, chưa giao xong (không cần theo dõi nữa)
+// Lỗi ở 1 đơn không làm dừng các đơn còn lại (xử lý tuần tự, có delay nhẹ
+// giữa các lần gọi để không dồn dập request lên GHN cùng lúc).
+async function autoSyncPendingGHNOrders() {
+  const pendingOrders = await Order.find({
+    ghnOrderCode: { $ne: '' },
+    isCancelled: { $ne: true },
+    isDelivered: { $ne: true },
+  })
+
+  if (pendingOrders.length === 0) return
+
+  console.log(`🔄 [Auto-sync GHN] Đang kiểm tra ${pendingOrders.length} đơn hàng...`)
+  let updatedCount = 0
+
+  for (const order of pendingOrders) {
+    try {
+      const result = await syncOrderStatusFromGHN(order)
+      if (result.statusChanged) {
+        updatedCount++
+        console.log(`✅ [Auto-sync GHN] Đơn #${order._id.toString().slice(-6)} → ${order.status}`)
+      }
+    } catch (e) {
+      console.error(`❌ [Auto-sync GHN] Lỗi đơn #${order._id.toString().slice(-6)}:`, e.message)
+    }
+    // Nghỉ 300ms giữa mỗi đơn — tránh gọi GHN quá dồn dập cùng lúc
+    await new Promise((resolve) => setTimeout(resolve, 300))
+  }
+
+  if (updatedCount > 0) {
+    console.log(`🔄 [Auto-sync GHN] Hoàn tất — đã cập nhật ${updatedCount}/${pendingOrders.length} đơn.`)
+  }
+}
 
 // @desc    Customer requests order cancellation
 // @route   PUT /api/orders/:id/cancel-request
@@ -1311,6 +1472,7 @@ export {
   getMyOrders,
   getOrders,
   trackOrder,
+  autoSyncPendingGHNOrders,
   cancelOrderRequest,
   approveCancelOrder,
   rejectCancelOrder,

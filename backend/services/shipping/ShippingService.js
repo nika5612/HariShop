@@ -2,11 +2,13 @@ import { withTimeout } from './utils.js'
 import { formatEtaLabel } from './utils.js'
 import ghnProvider from './providers/ghn.js'
 import viettelPostProvider from './providers/viettelpost.js'
+import ghtkProvider from './providers/ghtk.js'
 import Settings from '../../models/settingsModel.js'
 
 const PROVIDERS = {
   ghn: ghnProvider,
   viettelpost: viettelPostProvider,
+  ghtk: ghtkProvider,
 }
 
 function computeTotalWeightGrams(cartItems) {
@@ -105,4 +107,3 @@ const ShippingService = {
 }
 
 export default ShippingService
-

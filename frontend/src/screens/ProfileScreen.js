@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import Loader from '../components/Loader'
 import Message from '../components/Message'
+import PasswordInput from '../components/PasswordInput'
 import {
   updateUserProfile,
   requestChangePasswordOtp,
@@ -53,7 +54,6 @@ const sectionStyle = {
 const ProfileScreen = ({ history }) => {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
-  const [message, setMessage] = useState(null)
 
   // ===== B12: Đổi mật khẩu qua OTP =====
   const [newPassword, setNewPassword] = useState('')
@@ -197,7 +197,6 @@ const ProfileScreen = ({ history }) => {
               <i className='fas fa-user-edit me-2'></i>Thông tin cá nhân
             </h5>
 
-            {message && <Message variant='danger'>{message}</Message>}
             {success && <Message variant='success'>Cập nhật thành công!</Message>}
 
             {loading ? <Loader /> : error ? <Message variant='danger'>{error}</Message> : (
@@ -237,8 +236,7 @@ const ProfileScreen = ({ history }) => {
               <form onSubmit={requestOtpHandler} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 <div>
                   <label style={labelStyle}>Mật khẩu mới</label>
-                  <input
-                    type='password'
+                  <PasswordInput
                     placeholder='Nhập mật khẩu mới'
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
@@ -247,8 +245,7 @@ const ProfileScreen = ({ history }) => {
                 </div>
                 <div>
                   <label style={labelStyle}>Xác nhận mật khẩu mới</label>
-                  <input
-                    type='password'
+                  <PasswordInput
                     placeholder='Nhập lại mật khẩu mới'
                     value={confirmNewPassword}
                     onChange={(e) => setConfirmNewPassword(e.target.value)}

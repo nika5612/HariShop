@@ -12,10 +12,8 @@ const protect = asyncHandler(async (req, res, next) => {
   ) {
     try {
       token = req.headers.authorization.split(' ')[1]
-      console.log('🔍 Auth middleware - Raw token received')
 
       const decoded = jwt.verify(token, process.env.JWT_SECRET)
-      console.log('✅ JWT decoded:', decoded.id, typeof decoded.id)
 
       if (!mongoose.Types.ObjectId.isValid(decoded.id)) {
         console.error('❌ Invalid ObjectId:', decoded.id)
@@ -24,7 +22,6 @@ const protect = asyncHandler(async (req, res, next) => {
       }
 
       req.user = await User.findById(decoded.id).select('-password')
-      console.log('👤 User found:', req.user?._id, req.user?.email || 'NO USER')
 
       if (!req.user) {
         console.error('❌ User not found for ID:', decoded.id)
@@ -41,7 +38,6 @@ const protect = asyncHandler(async (req, res, next) => {
   }
 
   if (!token) {
-    console.log('⚠️ No token provided')
     res.status(401)
     throw new Error('Not authorized, no token')
   }

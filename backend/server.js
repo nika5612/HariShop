@@ -35,6 +35,7 @@ import passport, { configureGoogleStrategy } from './config/passport.js' // B11:
 import { configureCloudinary } from './config/cloudinary.js' // B10: Cloudinary
 // ✅ XÓA import transporter ở đây
 import Settings from './models/settingsModel.js'
+import { autoSyncPendingGHNOrders } from './controllers/orderController.js' // MỚI: tự động đồng bộ trạng thái GHN
 
 function envFirstTrim(keys) {
   for (const k of keys) {
@@ -266,6 +267,26 @@ async function start() {
       `Server running in ${process.env.NODE_ENV} mode on port ${PORT}`.yellow.bold
     )
   )
+
+  // MỚI: Tự động đồng bộ trạng thái đơn hàng từ GHN theo định kỳ (kết hợp
+  // với luồng thủ công — khách/admin vẫn bấm "Theo dõi vận chuyển" được như
+  // cũ, đây chỉ là thêm 1 lớp tự động chạy nền, không thay thế).
+  // Mặc định 10 phút/lần — đủ nhanh để cập nhật kịp thời, vừa tránh gọi GHN
+  // quá dồn dập (xem thêm ghi chú rate limit trong autoSyncPendingGHNOrders).
+  const AUTO_SYNC_INTERVAL_MS = 10 * 60 * 1000 // 10 phút
+
+  // Chờ 30 giây sau khi server khởi động rồi mới chạy lần đầu (tránh chạy
+  // ngay lúc DB/kết nối vừa mới lên, dễ gây lỗi thoáng qua).
+  setTimeout(() => {
+    autoSyncPendingGHNOrders().catch((e) =>
+      console.error('❌ [Auto-sync GHN] Lỗi lần chạy đầu:', e.message)
+    )
+    setInterval(() => {
+      autoSyncPendingGHNOrders().catch((e) =>
+        console.error('❌ [Auto-sync GHN] Lỗi:', e.message)
+      )
+    }, AUTO_SYNC_INTERVAL_MS)
+  }, 30 * 1000)
 }
 
 start()

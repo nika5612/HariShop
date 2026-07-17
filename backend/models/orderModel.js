@@ -89,6 +89,10 @@ const orderSchema = mongoose.Schema(
     ghnSortCode:    { type: String, default: '' },
     ghnTrackingUrl: { type: String, default: '' },
 
+    // MỚI: mã vận đơn GHTK (gọi là "label") sau khi tạo đơn thật thành công
+    ghtkLabelCode:  { type: String, default: '' },
+    ghtkPartnerId:  { type: String, default: '' }, // mã đơn nội bộ gửi cho GHTK (HS-<orderId>)
+
     transferContent: { type: String, default: '' },
 
     // ── MỚI (A3): trạng thái đơn hàng chi tiết theo timeline ────────

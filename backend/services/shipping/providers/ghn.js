@@ -1,9 +1,19 @@
 const GHN_TIMEOUT_MS = 8000
 
-const USE_SANDBOX = (process.env.GHN_USE_SANDBOX || '').trim() === 'true'
-const GHN_BASE_URL = USE_SANDBOX
-  ? 'https://dev-online-gateway.ghn.vn/shiip/public-api'
-  : 'https://online-gateway.ghn.vn/shiip/public-api'
+// ĐÃ SỬA: KHÔNG được tính USE_SANDBOX/GHN_BASE_URL là `const` ở top-level.
+// Lý do: ES Modules nạp toàn bộ `import` (kể cả file này) TRƯỚC khi
+// dotenv.config() chạy trong server.js — nên nếu tính ngay lúc import,
+// process.env.GHN_USE_SANDBOX luôn là undefined, và giá trị `false` bị
+// "đóng băng" vĩnh viễn dù .env có ghi true. Phải bọc trong hàm, gọi lại
+// mỗi lần cần dùng (giống cách đã sửa configureCloudinary/configureGoogleStrategy).
+function isSandbox() {
+  return (process.env.GHN_USE_SANDBOX || '').trim() === 'true'
+}
+function getGhnBaseUrl() {
+  return isSandbox()
+    ? 'https://dev-online-gateway.ghn.vn/shiip/public-api'
+    : 'https://online-gateway.ghn.vn/shiip/public-api'
+}
 
 function envFirstTrim(keys) {
   for (const k of keys) {
@@ -62,7 +72,7 @@ async function ghnFetchJson(path, { token, shopId, method = 'POST', body } = {})
   }
   if (shopId) headers.ShopId = String(shopId)
 
-  const res = await fetch(`${GHN_BASE_URL}${path}`, {
+  const res = await fetch(`${getGhnBaseUrl()}${path}`, {
     method,
     headers,
     body: body ? JSON.stringify(body) : undefined,
@@ -117,33 +127,23 @@ async function resolveWardCode({ token, districtId, wardName, wardCode }) {
 }
 
 async function getQuotes({ toAddress, fromAddress, totalWeightGrams, cartItems }) {
-  const token = USE_SANDBOX
+  const token = isSandbox()
     ? envFirstTrim(['GHN_TOKEN_DEV'])
     : envFirstTrim(['GHN_TOKEN', 'TOKEN_GHN'])
-  const shopId = USE_SANDBOX
+  const shopId = isSandbox()
     ? envFirstTrim(['GHN_SHOP_ID_DEV'])
     : envFirstTrim(['GHN_SHOP_ID', 'ID_GHN'])
 
-  console.log('=== GHN PROVIDER ===')
-  console.log('mode:', USE_SANDBOX ? '🧪 SANDBOX' : '🚀 PRODUCTION')
-  console.log('baseUrl:', GHN_BASE_URL)
-  console.log('token:', token ? token.substring(0, 8) + '...' : '❌ MISSING')
-  console.log('shopId:', shopId || '❌ MISSING')
-
   if (!token || !shopId) {
-    console.log('⛔ Missing credentials')
+    console.error('❌ GHN: thiếu GHN_TOKEN/GHN_SHOP_ID (hoặc TOKEN_GHN/ID_GHN)')
     return [{ available: false, reason: 'Missing GHN_TOKEN/GHN_SHOP_ID (or TOKEN_GHN/ID_GHN)' }]
   }
 
   const weight = Math.max(1, Number(totalWeightGrams || 0))
-  console.log('weight (grams):', weight)
 
   const provinceName = toAddress?.province || toAddress?.provinceName
   const districtName = toAddress?.district || toAddress?.districtName
   const wardName = toAddress?.ward || toAddress?.wardName
-
-  console.log('Resolving destination:', { provinceName, districtName, wardName })
-  console.log('Explicit IDs from frontend:', { districtId: toAddress?.districtId, wardCode: toAddress?.wardCode })
 
   const provinceId = await resolveProvinceId({
     token,
@@ -163,10 +163,8 @@ async function getQuotes({ toAddress, fromAddress, totalWeightGrams, cartItems }
     wardCode: toAddress?.wardCode,
   })
 
-  console.log('✅ Resolved destination — toDistrictId:', toDistrictId, '| toWardCode:', toWardCode)
-
   if (!toDistrictId || !toWardCode) {
-    console.log('⛔ Cannot resolve district/ward for destination')
+    console.error('❌ GHN: không map được district/ward cho địa chỉ nhận hàng')
     return [{ available: false, reason: 'Không map được GHN district/ward.' }]
   }
 
@@ -174,7 +172,6 @@ async function getQuotes({ toAddress, fromAddress, totalWeightGrams, cartItems }
   let fromWardCode = ''
 
   const warehouse = fromAddress && typeof fromAddress === 'object' ? fromAddress : null
-  console.log('warehouse fromAddress:', JSON.stringify(warehouse))
 
   if (warehouse) {
     fromDistrictId = Number(warehouse?.ghnDistrictId || warehouse?.districtId || 0)
@@ -208,8 +205,6 @@ async function getQuotes({ toAddress, fromAddress, totalWeightGrams, cartItems }
   if (!fromDistrictId) fromDistrictId = Number(envFirstTrim(['GHN_FROM_DISTRICT_ID']) || 0)
   if (!fromWardCode) fromWardCode = envFirstTrim(['GHN_FROM_WARD_CODE'])
 
-  console.log('✅ Resolved sender — fromDistrictId:', fromDistrictId || '⚠️ MISSING', '| fromWardCode:', fromWardCode || '⚠️ MISSING')
-
   // 1) available services
   let services = []
   if (fromDistrictId) {
@@ -224,13 +219,10 @@ async function getQuotes({ toAddress, fromAddress, totalWeightGrams, cartItems }
         },
       })
       services = Array.isArray(svcRes?.data) ? svcRes.data : []
-      console.log('✅ Available services:', services.length, services.map(s => s.short_name))
     } catch (e) {
-      console.log('⚠️ available-services error (non-fatal):', e.message)
+      console.error('⚠️ GHN available-services error (non-fatal):', e.message)
       services = []
     }
-  } else {
-    console.log('⚠️ fromDistrictId missing — bỏ qua available-services, vẫn thử tính phí')
   }
 
   // 2) fee calculation
@@ -260,14 +252,12 @@ async function getQuotes({ toAddress, fromAddress, totalWeightGrams, cartItems }
         })),
       },
     })
-    console.log('✅ GHN fee response:', JSON.stringify(feeRes?.data))
   } catch (e) {
-    console.log('❌ GHN fee error:', e.message)
+    console.error('❌ GHN fee error:', e.message)
     return [{ available: false, reason: `GHN fee failed: ${e.message}` }]
   }
 
   const totalFee = Number(feeRes?.data?.total || feeRes?.data?.service_fee || 0)
-  console.log('totalFee:', totalFee)
 
   // 3) leadtime
   let etaDate = null
@@ -289,9 +279,8 @@ async function getQuotes({ toAddress, fromAddress, totalWeightGrams, cartItems }
         })
         const leadSec = Number(leadRes?.data?.leadtime || 0)
         if (leadSec) etaDate = new Date(leadSec * 1000).toISOString()
-        console.log('✅ ETA:', etaDate)
       } catch (e) {
-        console.log('⚠️ leadtime error (non-fatal):', e.message)
+        console.error('⚠️ GHN leadtime error (non-fatal):', e.message)
         etaDate = null
       }
     }
@@ -316,7 +305,7 @@ async function getQuotes({ toAddress, fromAddress, totalWeightGrams, cartItems }
 }
 
 async function track(trackingId) {
-  const token = USE_SANDBOX
+  const token = isSandbox()
     ? envFirstTrim(['GHN_TOKEN_DEV'])
     : envFirstTrim(['GHN_TOKEN', 'TOKEN_GHN'])
 

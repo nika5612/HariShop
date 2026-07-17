@@ -32,6 +32,7 @@ const generateTransferContent = () =>
 const carrierLabel = (carrier) => {
   switch (carrier) {
     case 'ghn': return 'GHN'
+    case 'ghtk': return 'GHTK'
     case 'fallback': return 'Tạm tính'
     default: return carrier
   }

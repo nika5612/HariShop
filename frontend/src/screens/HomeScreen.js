@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import { Row, Col } from 'react-bootstrap'
@@ -7,6 +7,7 @@ import Message from '../components/Message'
 import Loader from '../components/Loader'
 import Paginate from '../components/Paginate'
 import ProductCarousel from '../components/ProductCarousel'
+import SortDropdown from '../components/SortDropdown'
 import Meta from '../components/Meta'
 import { listProducts } from '../actions/productActions'
 
@@ -1189,12 +1190,6 @@ const STATS = [
   { icon: 'fas fa-credit-card', title: 'Thanh toán', value: 'Nhiều hình thức, trả góp 0%' },
 ]
 
-const HERO_QUICKS = [
-  { icon: 'fas fa-bolt', label: 'Flash sale mỗi ngày' },
-  { icon: 'fas fa-sync-alt', label: 'Thu cũ đổi mới' },
-  { icon: 'fas fa-percentage', label: 'Trả góp 0%' },
-]
-
 const SectionHead = ({ title, right }) => (
   <div className='luxSectionHead'>
     <div>
@@ -1213,7 +1208,7 @@ const HomeScreen = ({ match, location }) => {
   const decodedKeyword = keyword ? decodeURIComponent(keyword) : ''
   const pageNumber = match.params.pageNumber || 1
 
-  const sort = 'latest'
+  const [sort, setSort] = useState('latest')
   let brand = ''
   let minPrice = ''
   let maxPrice = ''
@@ -1460,7 +1455,16 @@ const HomeScreen = ({ match, location }) => {
         <section className='luxSection'>
           <SectionHead
             title={isLanding ? 'Sản phẩm mới nhất' : 'Danh sách sản phẩm'}
-            right={products.length > 0 ? <div className='luxSectionCount'>{products.length} sản phẩm</div> : null}
+            right={
+              products.length > 0 ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                  <div className='luxSectionCount'>{products.length} sản phẩm</div>
+                  <div style={{ minWidth: '160px' }}>
+                    <SortDropdown sort={sort} setSort={setSort} compact />
+                  </div>
+                </div>
+              ) : null
+            }
           />
 
           {loading ? (

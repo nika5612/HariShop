@@ -5,6 +5,7 @@ import { useDispatch, useSelector } from 'react-redux'
 import Message from '../components/Message'
 import Loader from '../components/Loader'
 import FormContainer from '../components/FormContainer'
+import PasswordInput from '../components/PasswordInput'
 import { login } from '../actions/userActions'
 
 
@@ -66,8 +67,7 @@ const LoginScreen = ({ location, history }) => {
 
         <Form.Group controlId='password' style={{ marginBottom: '1.5rem' }}>
           <Form.Label style={{ color: '#ffffff', fontWeight: '500' }}>Mật khẩu</Form.Label>
-          <Form.Control
-            type='password'
+          <PasswordInput
             placeholder='Nhập mật khẩu'
             value={password}
             onChange={(e) => setPassword(e.target.value)}
