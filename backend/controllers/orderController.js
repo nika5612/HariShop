@@ -1136,7 +1136,7 @@ async function autoSyncPendingGHNOrders() {
     // kiện chưa từng nhìn vào status. Giờ kiểm tra CẢ status lẫn 2 cờ cũ —
     // chỉ cần 1 trong 2 nguồn báo "đã kết thúc" là dừng, không chờ cả 2 khớp.
     const pendingOrders = await Order.find({
-      ghnOrderCode: { $ne: '' },
+      ghnOrderCode: { $exists: true, $nin: [null, ''] },
       isCancelled: { $ne: true },
       isDelivered: { $ne: true },
       $or: [
@@ -1201,7 +1201,7 @@ async function autoSyncPendingGHTKOrders() {
 
   try {
     const pendingOrders = await Order.find({
-      ghtkLabelCode: { $ne: '' },
+      ghtkLabelCode: { $exists: true, $nin: [null, ''] },
       isCancelled: { $ne: true },
       isDelivered: { $ne: true },
       $or: [

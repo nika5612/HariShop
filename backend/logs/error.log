@@ -31,3 +31,15 @@ Error: AI đang gặp sự cố, vui lòng thử lại sau.
     at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
     at async callAI (file:///E:/HariShop_mern/backend/utils/aiProvider.js:219:15)
     at async file:///E:/HariShop_mern/backend/controllers/chatController.js:184:15
+[2026-07-20 22:08:43] ERROR: [POST /api/chat] AI đang gặp sự cố, vui lòng thử lại sau.
+Error: AI đang gặp sự cố, vui lòng thử lại sau.
+    at callOpenAICompatible (file:///E:/HariShop_mern/backend/utils/aiProvider.js:180:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async callAI (file:///E:/HariShop_mern/backend/utils/aiProvider.js:219:15)
+    at async file:///E:/HariShop_mern/backend/controllers/chatController.js:184:15
+[2026-07-20 22:18:38] ERROR: [POST /api/chat] AI đang gặp sự cố, vui lòng thử lại sau.
+Error: AI đang gặp sự cố, vui lòng thử lại sau.
+    at callOpenAICompatible (file:///E:/HariShop_mern/backend/utils/aiProvider.js:180:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async callAI (file:///E:/HariShop_mern/backend/utils/aiProvider.js:219:15)
+    at async file:///E:/HariShop_mern/backend/controllers/chatController.js:184:15
