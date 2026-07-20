@@ -296,7 +296,9 @@ export const listMyOrders = () => async (dispatch, getState) => {
   }
 }
 
-export const listOrders = () => async (dispatch, getState) => {
+// MỚI: nhận thêm { sortBy, order } (click-to-sort kiểu FC Online).
+// Không truyền gì vẫn hoạt động như cũ (giữ tương thích ngược).
+export const listOrders = ({ sortBy = '', order = '' } = {}) => async (dispatch, getState) => {
   try {
     dispatch({ type: ORDER_LIST_REQUEST })
 
@@ -306,7 +308,10 @@ export const listOrders = () => async (dispatch, getState) => {
       headers: { Authorization: `Bearer ${userInfo.token}` },
     }
 
-    const { data } = await axios.get(`/api/orders`, config)
+    let query = '/api/orders'
+    if (sortBy && order) query += `?sortBy=${sortBy}&order=${order}`
+
+    const { data } = await axios.get(query, config)
 
     dispatch({ type: ORDER_LIST_SUCCESS, payload: data })
   } catch (error) {

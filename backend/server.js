@@ -5,6 +5,7 @@ import express from 'express'
 import dotenv from 'dotenv'
 import colors from 'colors'
 import morgan from 'morgan'
+import helmet from 'helmet'
 
 // ES module __dirname fix
 const __filename = fileURLToPath(import.meta.url)
@@ -35,7 +36,22 @@ import passport, { configureGoogleStrategy } from './config/passport.js' // B11:
 import { configureCloudinary } from './config/cloudinary.js' // B10: Cloudinary
 // ✅ XÓA import transporter ở đây
 import Settings from './models/settingsModel.js'
-import { autoSyncPendingGHNOrders } from './controllers/orderController.js' // MỚI: tự động đồng bộ trạng thái GHN
+import { autoSyncPendingGHNOrders, autoSyncPendingGHTKOrders } from './controllers/orderController.js' // MỚI: tự động đồng bộ trạng thái GHN + GHTK
+import logger from './utils/logger.js'
+
+// MỚI: bắt các lỗi crash toàn cục mà middleware errorHandler (chỉ áp dụng
+// cho request Express) không bắt được — lỗi async ném ra ngoài mọi route
+// (VD: lỗi trong 1 setInterval/cron nào đó quên try/catch) hoặc Promise bị
+// reject mà không ai .catch(). Trước đây các lỗi này làm crash server ÂM
+// THẦM (Node in ra stderr rồi thoát) mà không có dòng log rõ ràng nào ghi
+// lại NGUYÊN NHÂN trước khi tắt.
+process.on('uncaughtException', (err) => {
+  logger.error(`[uncaughtException] ${err.message}\n${err.stack}`)
+})
+process.on('unhandledRejection', (reason) => {
+  const message = reason instanceof Error ? `${reason.message}\n${reason.stack}` : String(reason)
+  logger.error(`[unhandledRejection] ${message}`)
+})
 
 function envFirstTrim(keys) {
   for (const k of keys) {
@@ -148,7 +164,7 @@ async function ensureDefaultWarehouseSettings() {
         }
       }
     } catch (e) {
-      console.warn('Default warehouse GHN mapping skipped:', e?.message)
+      logger.warn(`Default warehouse GHN mapping skipped: ${e?.message}`)
     }
   }
 
@@ -167,6 +183,16 @@ configureGoogleStrategy()
 configureCloudinary()
 
 const app = express()
+
+// MỚI: helmet — thêm các HTTP security header cơ bản (chống clickjacking
+// qua X-Frame-Options, chặn MIME-sniffing qua X-Content-Type-Options, ẩn
+// header X-Powered-By tiết lộ đang dùng Express, v.v).
+// contentSecurityPolicy tắt mặc định — CSP mặc định của helmet chặn khá
+// nghiêm ngặt (script/ảnh/font từ domain khác), trong khi site đang tải
+// ảnh từ Cloudinary và gọi API GHN/GHTK phía client. Bật CSP ẩu có thể
+// làm gãy các phần đó. Muốn bật, nên tự khai domain được phép trước:
+//   helmet({ contentSecurityPolicy: { directives: { imgSrc: ["'self'", 'res.cloudinary.com'], ... } } })
+app.use(helmet({ contentSecurityPolicy: false }))
 
 // Middleware
 app.use(express.json())
@@ -256,19 +282,16 @@ async function start() {
   await connectDB()
   await ensureDefaultWarehouseSettings()
 
-  // MỚI (B9): dùng http.createServer thay vì app.listen trực tiếp, để gắn được
+  //dùng http.createServer thay vì app.listen trực tiếp, để gắn được
   // Socket.io lên CÙNG server (cùng port, không cần mở port riêng).
   const httpServer = http.createServer(app)
   initSocket(httpServer)
 
-  httpServer.listen(
-    PORT,
-    console.log(
-      `Server running in ${process.env.NODE_ENV} mode on port ${PORT}`.yellow.bold
-    )
-  )
+  httpServer.listen(PORT, () => {
+    logger.info(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`)
+  })
 
-  // MỚI: Tự động đồng bộ trạng thái đơn hàng từ GHN theo định kỳ (kết hợp
+  //Tự động đồng bộ trạng thái đơn hàng từ GHN theo định kỳ (kết hợp
   // với luồng thủ công — khách/admin vẫn bấm "Theo dõi vận chuyển" được như
   // cũ, đây chỉ là thêm 1 lớp tự động chạy nền, không thay thế).
   // Mặc định 10 phút/lần — đủ nhanh để cập nhật kịp thời, vừa tránh gọi GHN
@@ -279,11 +302,20 @@ async function start() {
   // ngay lúc DB/kết nối vừa mới lên, dễ gây lỗi thoáng qua).
   setTimeout(() => {
     autoSyncPendingGHNOrders().catch((e) =>
-      console.error('❌ [Auto-sync GHN] Lỗi lần chạy đầu:', e.message)
+      logger.error(`[Auto-sync GHN] Lỗi lần chạy đầu: ${e.message}`)
+    )
+    //tương tự GHN, nhưng cho đơn giao qua GHTK (ghtkLabelCode). Xem
+    // cảnh báo về mapping trạng thái GHTK chưa verify với đơn thật trong
+    // ghi chú của GHTK_TO_ORDER_STATUS (orderController.js).
+    autoSyncPendingGHTKOrders().catch((e) =>
+      logger.error(`[Auto-sync GHTK] Lỗi lần chạy đầu: ${e.message}`)
     )
     setInterval(() => {
       autoSyncPendingGHNOrders().catch((e) =>
-        console.error('❌ [Auto-sync GHN] Lỗi:', e.message)
+        logger.error(`[Auto-sync GHN] Lỗi: ${e.message}`)
+      )
+      autoSyncPendingGHTKOrders().catch((e) =>
+        logger.error(`[Auto-sync GHTK] Lỗi: ${e.message}`)
       )
     }, AUTO_SYNC_INTERVAL_MS)
   }, 30 * 1000)

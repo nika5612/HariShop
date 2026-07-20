@@ -1,0 +1,44 @@
+[2026-07-20 20:09:34] INFO: Server running in development mode on port 5000
+[2026-07-20 20:10:04] INFO: [Auto-sync GHTK] Đang kiểm tra 8 đơn hàng (lô 5 đơn/lần)...
+[2026-07-20 20:10:15] INFO: Server running in development mode on port 5000
+[2026-07-20 20:10:21] INFO: Server running in development mode on port 5000
+[2026-07-20 20:10:51] INFO: [Auto-sync GHTK] Đang kiểm tra 8 đơn hàng (lô 5 đơn/lần)...
+[2026-07-20 20:11:57] ERROR: [uncaughtException] listen EADDRINUSE: address already in use :::5000
+Error: listen EADDRINUSE: address already in use :::5000
+    at Server.setupListenHandle [as _listen2] (node:net:2008:16)
+    at listenInCluster (node:net:2065:12)
+    at Server.listen (node:net:2170:7)
+    at start (file:///E:/HariShop_mern/backend/server.js:290:14)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+[2026-07-20 20:12:27] INFO: [Auto-sync GHTK] Đang kiểm tra 8 đơn hàng (lô 5 đơn/lần)...
+[2026-07-20 20:20:48] INFO: Server running in development mode on port 5000
+[2026-07-20 20:21:16] ERROR: [POST /api/chat] AI hiện chưa được cấu hình (thiếu ANTHROPIC_API_KEY). Vui lòng liên hệ shop qua hotline để được hỗ trợ.
+Error: AI hiện chưa được cấu hình (thiếu ANTHROPIC_API_KEY). Vui lòng liên hệ shop qua hotline để được hỗ trợ.
+    at callAnthropic (file:///E:/HariShop_mern/backend/utils/aiProvider.js:85:17)
+    at callProvider (file:///E:/HariShop_mern/backend/utils/aiProvider.js:215:7)
+    at callAI (file:///E:/HariShop_mern/backend/utils/aiProvider.js:219:21)
+    at file:///E:/HariShop_mern/backend/controllers/chatController.js:184:21
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+[2026-07-20 20:21:18] INFO: [Auto-sync GHTK] Đang kiểm tra 8 đơn hàng (lô 5 đơn/lần)...
+[2026-07-20 20:26:49] ERROR: [POST /api/chat] AI hiện chưa được cấu hình (thiếu ANTHROPIC_API_KEY). Vui lòng liên hệ shop qua hotline để được hỗ trợ.
+Error: AI hiện chưa được cấu hình (thiếu ANTHROPIC_API_KEY). Vui lòng liên hệ shop qua hotline để được hỗ trợ.
+    at callAnthropic (file:///E:/HariShop_mern/backend/utils/aiProvider.js:85:17)
+    at callProvider (file:///E:/HariShop_mern/backend/utils/aiProvider.js:215:7)
+    at callAI (file:///E:/HariShop_mern/backend/utils/aiProvider.js:219:21)
+    at file:///E:/HariShop_mern/backend/controllers/chatController.js:184:21
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+[2026-07-20 20:27:16] INFO: Server running in development mode on port 5000
+[2026-07-20 20:27:41] ERROR: [POST /api/chat] AI đang gặp sự cố, vui lòng thử lại sau.
+Error: AI đang gặp sự cố, vui lòng thử lại sau.
+    at callOpenAICompatible (file:///E:/HariShop_mern/backend/utils/aiProvider.js:180:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async callAI (file:///E:/HariShop_mern/backend/utils/aiProvider.js:219:15)
+    at async file:///E:/HariShop_mern/backend/controllers/chatController.js:184:15
+[2026-07-20 20:27:46] INFO: [Auto-sync GHTK] Đang kiểm tra 8 đơn hàng (lô 5 đơn/lần)...
+[2026-07-20 20:28:02] ERROR: [POST /api/chat] AI đang gặp sự cố, vui lòng thử lại sau.
+Error: AI đang gặp sự cố, vui lòng thử lại sau.
+    at callOpenAICompatible (file:///E:/HariShop_mern/backend/utils/aiProvider.js:180:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async callAI (file:///E:/HariShop_mern/backend/utils/aiProvider.js:219:15)
+    at async file:///E:/HariShop_mern/backend/controllers/chatController.js:184:15
+[2026-07-20 20:28:51] INFO: Server running in development mode on port 5000

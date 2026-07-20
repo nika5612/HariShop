@@ -367,7 +367,9 @@ export const updateUserProfile = (user) => async (dispatch, getState) => {
 }
 
 // ADMIN - LIST USERS (Admin-only endpoint)
-export const listUsers = () => async (dispatch, getState) => {
+// MỚI: nhận thêm { sortBy, order } (click-to-sort kiểu FC Online).
+// Không truyền gì vẫn hoạt động như cũ (giữ tương thích ngược).
+export const listUsers = ({ sortBy = '', order = '' } = {}) => async (dispatch, getState) => {
   try {
     dispatch({ type: USER_LIST_REQUEST })
 
@@ -390,7 +392,10 @@ export const listUsers = () => async (dispatch, getState) => {
       },
     }
 
-    const { data } = await axios.get('/api/users', config)
+    let query = '/api/users'
+    if (sortBy && order) query += `?sortBy=${sortBy}&order=${order}`
+
+    const { data } = await axios.get(query, config)
 
     dispatch({
       type: USER_LIST_SUCCESS,

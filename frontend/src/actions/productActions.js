@@ -51,7 +51,17 @@ const getSafeErrorMessage = (error) => {
 ======================= */
 export const listProducts =
   (
-    { keyword = '', brand = '', minPrice = '', maxPrice = '', sort = 'latest' },
+    {
+      keyword = '',
+      brand = '',
+      minPrice = '',
+      maxPrice = '',
+      sort = 'latest',
+      // MỚI: sort theo cột kiểu FC Online (click header). Khi có
+      // sortBy/order thì backend sẽ ưu tiên 2 tham số này hơn `sort`.
+      sortBy = '',
+      order = '',
+    },
     pageNumber = ''
   ) =>
   async (dispatch) => {
@@ -63,7 +73,11 @@ export const listProducts =
       if (brand) query += `&brand=${brand}`
       if (minPrice !== '') query += `&minPrice=${minPrice}`
       if (maxPrice !== '') query += `&maxPrice=${maxPrice}`
-      if (sort) query += `&sort=${sort}`
+      if (sortBy && order) {
+        query += `&sortBy=${sortBy}&order=${order}`
+      } else if (sort) {
+        query += `&sort=${sort}`
+      }
 
       const { data } = await axios.get(query)
       

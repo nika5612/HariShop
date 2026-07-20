@@ -5,7 +5,7 @@ import Meta from '../components/Meta'
 import Message from '../components/Message'
 import Loader from '../components/Loader'
 import RevenueBarChart from '../components/RevenueBarChart'
-import { getRevenueAnalytics } from '../actions/orderAdminActions'
+import { getRevenueAnalytics, exportOrdersToExcel, exportRevenueToPdf } from '../actions/orderAdminActions'
 
 const cardStyle = {
   background: '#1a1a2e',
@@ -47,6 +47,10 @@ const AdminRevenueScreen = () => {
   const revenueAnalytics = useSelector((state) => state.revenueAnalytics)
   const { loading, error, data } = revenueAnalytics
 
+  // MỚI: state loading riêng cho 2 nút export (không dùng chung loading của revenueAnalytics)
+  const [exportingExcel, setExportingExcel] = useState(false)
+  const [exportingPdf, setExportingPdf] = useState(false)
+
   const fetchData = () => {
     const params = { period }
     if (period === 'month') { params.month = month; params.year = year }
@@ -58,6 +62,62 @@ const AdminRevenueScreen = () => {
       params.endDate = endDate
     }
     dispatch(getRevenueAnalytics(params))
+  }
+
+  // MỚI: quy đổi bộ lọc hiện tại (tháng/quý/năm/tùy chọn) thành 1 khoảng
+  // ngày cụ thể — dùng cho export Excel (backend chỉ nhận startDate/endDate).
+  const getEffectiveDateRange = () => {
+    if (period === 'custom') return { startDate, endDate }
+
+    const pad = (n) => String(n).padStart(2, '0')
+    const toStr = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+
+    if (period === 'year') {
+      return { startDate: `${year}-01-01`, endDate: `${year}-12-31` }
+    }
+    if (period === 'quarter') {
+      const startMonth = (quarter - 1) * 3
+      const start = new Date(year, startMonth, 1)
+      const end = new Date(year, startMonth + 3, 0)
+      return { startDate: toStr(start), endDate: toStr(end) }
+    }
+    // 'month'
+    const start = new Date(year, month - 1, 1)
+    const end = new Date(year, month, 0)
+    return { startDate: toStr(start), endDate: toStr(end) }
+  }
+
+  const handleExportExcel = async () => {
+    const range = getEffectiveDateRange()
+    if (!range.startDate || !range.endDate) return
+    setExportingExcel(true)
+    try {
+      await dispatch(exportOrdersToExcel(range))
+    } catch (e) {
+      alert('Xuất Excel thất bại: ' + (e?.message || 'Lỗi không xác định'))
+    } finally {
+      setExportingExcel(false)
+    }
+  }
+
+  const handleExportPdf = async () => {
+    const params = { period }
+    if (period === 'month') { params.month = month; params.year = year }
+    else if (period === 'quarter') { params.quarter = quarter; params.year = year }
+    else if (period === 'year') { params.year = year }
+    else if (period === 'custom') {
+      if (!startDate || !endDate) return
+      params.startDate = startDate
+      params.endDate = endDate
+    }
+    setExportingPdf(true)
+    try {
+      await dispatch(exportRevenueToPdf(params))
+    } catch (e) {
+      alert('Xuất PDF thất bại: ' + (e?.message || 'Lỗi không xác định'))
+    } finally {
+      setExportingPdf(false)
+    }
   }
 
   useEffect(() => {
@@ -165,6 +225,35 @@ const AdminRevenueScreen = () => {
           }}
         >
           <i className='fas fa-sync-alt me-2'></i>Xem thống kê
+        </button>
+
+        {/* MỚI: Export báo cáo — Excel (danh sách đơn hàng) / PDF (báo cáo doanh thu) */}
+        <button
+          onClick={handleExportExcel}
+          disabled={exportingExcel}
+          style={{
+            background: 'transparent', border: '1px solid #4cdb80', borderRadius: 8,
+            padding: '9px 18px', color: '#4cdb80', fontWeight: 700,
+            fontSize: 13, cursor: exportingExcel ? 'wait' : 'pointer', height: 'fit-content',
+            opacity: exportingExcel ? 0.6 : 1,
+          }}
+        >
+          <i className='fas fa-file-excel me-2'></i>
+          {exportingExcel ? 'Đang xuất...' : 'Xuất Excel'}
+        </button>
+
+        <button
+          onClick={handleExportPdf}
+          disabled={exportingPdf}
+          style={{
+            background: 'transparent', border: '1px solid #ff6b6b', borderRadius: 8,
+            padding: '9px 18px', color: '#ff6b6b', fontWeight: 700,
+            fontSize: 13, cursor: exportingPdf ? 'wait' : 'pointer', height: 'fit-content',
+            opacity: exportingPdf ? 0.6 : 1,
+          }}
+        >
+          <i className='fas fa-file-pdf me-2'></i>
+          {exportingPdf ? 'Đang xuất...' : 'Xuất PDF'}
         </button>
       </div>
 

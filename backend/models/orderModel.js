@@ -53,6 +53,13 @@ const orderSchema = mongoose.Schema(
 
     deliveryMethod:  { type: String, default: 'nhanh' },
     voucherCode:     { type: String, default: '' },
+    // MỚI: lưu đầy đủ thông tin voucher tại thời điểm đặt hàng (không chỉ
+    // code+discountAmount như trước) — để lịch sử đơn hàng không đổi dù
+    // sau này voucher gốc bị admin sửa/xoá.
+    voucherId:       { type: mongoose.Schema.Types.ObjectId, ref: 'Voucher' },
+    voucherName:     { type: String, default: '' },
+    discountType:    { type: String, default: '' }, // 'percent' | 'fixed' | 'freeship'
+    discountValue:   { type: Number, default: 0 },   // giá trị gốc của voucher (vd: 10 nếu percent 10%)
     shopMessage:     { type: String, default: '' },
     deliveryFee:     { type: Number, default: 0.0 },
     voucherDiscount: { type: Number, default: 0.0 },
@@ -65,6 +72,14 @@ const orderSchema = mongoose.Schema(
     isCancelled:  { type: Boolean, default: false },
     cancelledAt:  { type: Date },
     cancelReason: { type: String, default: '' },
+    // MỚI: chống hoàn kho 2 lần cho cùng 1 đơn (có nhiều đường dẫn tới
+    // trạng thái 'cancelled'/'returned': approveCancelOrder VÀ
+    // updateOrderStatus — nếu không có cờ này, cả 2 cùng chạy trên
+    // 1 đơn sẽ cộng dư tồn kho ảo).
+    stockRestored: { type: Boolean, default: false },
+    // MỚI: chống hoàn usedCount/usedBy của voucher 2 lần — cùng lý do
+    // với stockRestored ở trên (đơn có thể bị hủy qua nhiều đường dẫn).
+    voucherReverted: { type: Boolean, default: false },
     cancelRequest: {
       requested:   { type: Boolean, default: false },
       reason:      { type: String, default: '' },

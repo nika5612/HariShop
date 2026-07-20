@@ -105,8 +105,9 @@ async function track(trackingId) {
     location: '',
     time: h?.updated_at || null,
   }))
+  const currentStatusCode = data?.order?.status != null ? String(data.order.status) : ''
 
-  return { events, raw: data }
+  return { events, currentStatusCode, raw: data }
 }
 
 export default {

@@ -3,12 +3,27 @@ import crypto from 'crypto'
 import mongoose from 'mongoose'
 import generateToken from '../utils/generateToken.js'
 import User from '../models/userModel.js'
-import { checkRateLimit } from '../utils/rateLimit.js'
+import { checkRateLimit, resetRateLimit } from '../utils/rateLimit.js'
 
 /* ===================== AUTH ===================== */
 
+// MỚI: chống brute-force đăng nhập — tối đa 5 lần SAI trong 15 phút cho
+// mỗi cặp (IP + email). Đếm theo cặp IP+email (không chỉ riêng IP) để
+// không khóa nhầm cả văn phòng/mạng chung khi chỉ 1 người gõ sai; đồng
+// thời không chỉ riêng email để 1 IP không thể dò mật khẩu hàng loạt tài
+// khoản khác nhau mà không bị giới hạn.
+const LOGIN_MAX_ATTEMPTS = 5
+const LOGIN_WINDOW_MS = 15 * 60 * 1000
+
 const authUser = asyncHandler(async (req, res) => {
   const { email, password } = req.body
+  const ip = req.ip || req.connection?.remoteAddress || 'unknown'
+  const rateLimitKey = `login_${ip}_${String(email || '').toLowerCase()}`
+
+  if (!checkRateLimit(rateLimitKey, LOGIN_MAX_ATTEMPTS, LOGIN_WINDOW_MS)) {
+    res.status(429)
+    throw new Error('Bạn đã nhập sai quá nhiều lần. Vui lòng thử lại sau 15 phút.')
+  }
 
   const user = await User.findOne({ email })
 
@@ -17,6 +32,9 @@ const authUser = asyncHandler(async (req, res) => {
       res.status(403)
       throw new Error('Tài khoản chưa xác thực email. Vui lòng kiểm tra hộp thư và nhập mã OTP.')
     }
+
+    // Đăng nhập đúng → mở khóa ngay, không tính lần này vào giới hạn tương lai
+    resetRateLimit(rateLimitKey)
 
     res.json({
       _id: user._id,
@@ -198,6 +216,15 @@ const resendOtp = asyncHandler(async (req, res) => {
 const registerUser = asyncHandler(async (req, res) => {
   const { name, phone, email, password, address } = req.body
 
+  // MỚI: chống spam tạo tài khoản hàng loạt — tối đa 8 lần đăng ký/giờ/IP.
+  // Giới hạn rộng hơn login vì đây là chặn bot spam, không phải brute-force
+  // dò mật khẩu — người dùng thật gần như không bao giờ đăng ký 8 lần/giờ.
+  const ip = req.ip || req.connection?.remoteAddress || 'unknown'
+  if (!checkRateLimit(`register_${ip}`, 8, 60 * 60 * 1000)) {
+    res.status(429)
+    throw new Error('Bạn đã đăng ký quá nhiều lần. Vui lòng thử lại sau 1 giờ.')
+  }
+
   if (!name || !email || !password) {
     res.status(400)
     throw new Error('Vui lòng nhập đầy đủ tên, email và mật khẩu.')
@@ -290,20 +317,30 @@ const forgotPassword = asyncHandler(async (req, res) => {
   }
 
   // Limit forgot-password requests: max 3 per 1 hour per IP
-  const canRequest = checkRateLimit(ip)
+  const canRequest = checkRateLimit(`forgot_${ip}`, 3, 60 * 60 * 1000)
   if (!canRequest) {
     res.status(429)
     throw new Error('Bạn đã yêu cầu đổi mật khẩu quá nhiều lần. Vui lòng thử lại sau 1 giờ.')
   }
 
 
-  const securePassword =
-    crypto.randomBytes(5).toString('hex') +
-    crypto.randomBytes(5).toString('base64url').slice(0, 5)
-  const newPassword = securePassword.slice(0, 10)
+  // ── SỬA: trước đây hàm này tự sinh mật khẩu MỚI và gửi thẳng qua email,
+  // khiến route resetPassword (PUT /resetpassword/:token) — và cả màn hình
+  // ResetPasswordScreen ở frontend đã xây sẵn — không bao giờ được dùng tới
+  // vì resetPasswordToken chưa từng được gán. Giờ chuyển đúng sang luồng
+  // gửi LINK reset kèm token (an toàn hơn: mật khẩu không nằm trong email,
+  // và nếu gửi email thất bại thì mật khẩu cũ VẪN giữ nguyên, không bị đổi
+  // "chay" rồi khoá người dùng ngoài tài khoản của chính họ).
+  const rawToken = crypto.randomBytes(32).toString('hex')
+  const hashedToken = crypto.createHash('sha256').update(rawToken).digest('hex')
+  const RESET_TOKEN_EXPIRE_MINUTES = 30
 
-  user.password = newPassword
+  user.resetPasswordToken = hashedToken
+  user.resetPasswordExpire = Date.now() + RESET_TOKEN_EXPIRE_MINUTES * 60 * 1000
   await user.save()
+
+  const clientUrl = process.env.CLIENT_URL || 'http://localhost:3000'
+  const resetLink = `${clientUrl}/resetpassword/${rawToken}`
 
   let emailSent = false
   let emailErrorMessage = null
@@ -322,20 +359,23 @@ const forgotPassword = asyncHandler(async (req, res) => {
       await transporter.sendMail({
         from: `"HariShop" <${gmailUser}>`,
         to: user.email,
-        subject: 'HariShop - Mật khẩu mới của bạn',
+        subject: 'HariShop - Đặt lại mật khẩu',
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
             <h2 style="color: #33FFCC;">Chào ${user.name || 'Khách hàng'},</h2>
-            <p>Chúng tôi đã cấp lại mật khẩu cho tài khoản của bạn:</p>
-            <div style="background: #1a1a2e; color: #33FFCC; padding: 20px; border-radius: 12px;
-                        text-align: center; font-size: 24px; font-weight: bold;
-                        border: 2px solid #33FFCC; margin: 20px 0;">
-              ${newPassword}
+            <p>Chúng tôi nhận được yêu cầu đặt lại mật khẩu cho tài khoản của bạn. Nhấn nút bên dưới để đặt mật khẩu mới:</p>
+            <div style="text-align: center; margin: 24px 0;">
+              <a href="${resetLink}" style="background: #33FFCC; color: #0f0f23; padding: 14px 28px;
+                        border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px;
+                        display: inline-block;">
+                Đặt lại mật khẩu
+              </a>
             </div>
+            <p style="color: #b8bcc8; font-size: 13px;">Hoặc copy link sau vào trình duyệt:<br>${resetLink}</p>
             <p><strong>Lưu ý quan trọng:</strong></p>
             <ul style="color: #b8bcc8;">
-              <li>Hãy đăng nhập và đổi mật khẩu ngay để bảo mật</li>
-              <li>Nếu bạn không yêu cầu, vui lòng bỏ qua email này</li>
+              <li>Link này chỉ có hiệu lực trong ${RESET_TOKEN_EXPIRE_MINUTES} phút</li>
+              <li>Nếu bạn không yêu cầu, vui lòng bỏ qua email này — mật khẩu hiện tại vẫn giữ nguyên</li>
             </ul>
             <hr style="border: none; border-top: 1px solid #333; margin: 30px 0;">
             <p style="color: #666; font-size: 12px;">Trân trọng,<br>HariShop Team</p>
@@ -353,8 +393,8 @@ const forgotPassword = asyncHandler(async (req, res) => {
     success: true,
     emailSent,
     message: emailSent
-      ? 'Mật khẩu mới đã được gửi vào email của bạn.'
-      : `Đã cập nhật mật khẩu mới nhưng chưa gửi được email. ${emailErrorMessage || ''}`.trim(),
+      ? 'Link đặt lại mật khẩu đã được gửi vào email của bạn.'
+      : `Không thể gửi email đặt lại mật khẩu. ${emailErrorMessage || ''}`.trim(),
   })
 })
 
@@ -598,8 +638,27 @@ const setDefaultAddress = asyncHandler(async (req, res) => {
 
 /* ===================== ADMIN ===================== */
 
+// ── MỚI: sort theo cột kiểu FC Online (click header) cho trang admin
+// quản lý user. Whitelist field để tránh client truyền field tuỳ ý.
+const SORTABLE_USER_FIELDS = {
+  name: 'name',
+  email: 'email',
+  isAdmin: 'isAdmin',
+  createdAt: 'createdAt',
+}
+
 const getUsers = asyncHandler(async (req, res) => {
-  const users = await User.find({})
+  const requestedOrder = req.query.order === 'asc' ? 1 : req.query.order === 'desc' ? -1 : null
+  const columnSortField = SORTABLE_USER_FIELDS[req.query.sortBy]
+  const sortStage =
+    columnSortField && requestedOrder !== null
+      ? { [columnSortField]: requestedOrder }
+      : { createdAt: -1 } // mặc định: user mới nhất lên đầu
+
+  // ── SỬA LỖI BẢO MẬT: trước đây thiếu .select('-password'), khiến mật
+  // khẩu đã hash của TOÀN BỘ user bị trả về cho response admin — dù đã
+  // hash vẫn không nên để lộ ra ngoài.
+  const users = await User.find({}).select('-password').sort(sortStage)
   res.json(users)
 })
 

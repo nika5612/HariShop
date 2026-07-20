@@ -72,6 +72,8 @@ import {
   voucherCreateReducer,
   voucherUpdateReducer,
   voucherDeleteReducer,
+  voucherAvailableListReducer,
+  voucherValidateReducer,
 } from './reducers/voucherReducers'
 
 
@@ -129,6 +131,8 @@ const reducer = combineReducers({
   voucherCreate: voucherCreateReducer,
   voucherUpdate: voucherUpdateReducer,
   voucherDelete: voucherDeleteReducer,
+  voucherAvailableList: voucherAvailableListReducer,
+  voucherValidate: voucherValidateReducer,
 
   // ADDRESS BOOK
   address: addressReducer,

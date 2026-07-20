@@ -11,6 +11,8 @@ import PieChart from '../components/PieChart'
 import { ORDER_ADMIN_DELETE_RESET } from '../constants/orderConstants'
 import { getOrderStatusInfo } from '../constants/orderStatusConfig'
 import ConfirmDeleteModal from '../components/ConfirmDeleteModal'
+import SortableHeader from '../components/SortableHeader'
+import { useTableSort, sortConfigToQuery } from '../utils/sortHelper'
 
 
 const OrderListScreen = ({ history }) => {
@@ -23,13 +25,16 @@ const OrderListScreen = ({ history }) => {
   const userLogin = useSelector((state) => state.userLogin)
   const { userInfo } = userLogin
 
+  // MỚI: sort theo cột kiểu FC Online (click header)
+  const { sortConfig, handleSort } = useTableSort()
+
   useEffect(() => {
     if (userInfo && userInfo.isAdmin) {
-      dispatch(listOrders())
+      dispatch(listOrders(sortConfigToQuery(sortConfig)))
     } else {
       history.push('/login')
     }
-  }, [dispatch, history, userInfo])
+  }, [dispatch, history, userInfo, sortConfig])
 
   const orderAdminRevenue = useSelector((state) => state.orderAdminRevenue)
   const { data: revenueData } = orderAdminRevenue
@@ -170,12 +175,12 @@ const OrderListScreen = ({ history }) => {
           <Table striped bordered hover responsive className='table-sm'>
             <thead>
               <tr>
-                <th>ID</th>
-                <th>USER</th>
-                <th>Ngày</th>
-                <th>Tổng</th>
-                <th>Trạng thái</th>
-                <th>Thanh Toán</th>
+                <SortableHeader label='ID' sortKey='orderId' sortConfig={sortConfig} onSort={handleSort} />
+                <SortableHeader label='USER' sortKey='customerName' sortConfig={sortConfig} onSort={handleSort} />
+                <SortableHeader label='Ngày' sortKey='createdAt' sortConfig={sortConfig} onSort={handleSort} />
+                <SortableHeader label='Tổng' sortKey='totalPrice' sortConfig={sortConfig} onSort={handleSort} />
+                <SortableHeader label='Trạng thái' sortKey='deliveryStatus' sortConfig={sortConfig} onSort={handleSort} />
+                <SortableHeader label='Thanh Toán' sortKey='paymentStatus' sortConfig={sortConfig} onSort={handleSort} />
                 <th>Đã Giao Hàng</th>
                 <th></th>
               </tr>

@@ -7,6 +7,8 @@ import Message from '../components/Message'
 import Loader from '../components/Loader'
 import { listUsers, deleteUser } from '../actions/userActions'
 import ConfirmDeleteModal from '../components/ConfirmDeleteModal'
+import SortableHeader from '../components/SortableHeader'
+import { useTableSort, sortConfigToQuery } from '../utils/sortHelper'
 
 
 const UserListScreen = ({ history }) => {
@@ -21,13 +23,16 @@ const UserListScreen = ({ history }) => {
   const userDelete = useSelector((state) => state.userDelete)
   const { success: successDelete } = userDelete
 
+  // MỚI: sort theo cột kiểu FC Online (click header)
+  const { sortConfig, handleSort } = useTableSort()
+
   useEffect(() => {
     if (userInfo && userInfo.isAdmin) {
-      dispatch(listUsers())
+      dispatch(listUsers(sortConfigToQuery(sortConfig)))
     } else {
       history.push('/login')
     }
-  }, [dispatch, history, successDelete, userInfo])
+  }, [dispatch, history, successDelete, userInfo, sortConfig])
 
   const [showConfirm, setShowConfirm] = useState(false)
   const [deleteId, setDeleteId] = useState(null)
@@ -66,9 +71,10 @@ const UserListScreen = ({ history }) => {
           <thead>
             <tr>
               <th>ID</th>
-              <th>Tên</th>
-              <th>EMAIL</th>
-              <th>ADMIN</th>
+              <SortableHeader label='Tên' sortKey='name' sortConfig={sortConfig} onSort={handleSort} />
+              <SortableHeader label='EMAIL' sortKey='email' sortConfig={sortConfig} onSort={handleSort} />
+              <SortableHeader label='ADMIN' sortKey='isAdmin' sortConfig={sortConfig} onSort={handleSort} />
+              <SortableHeader label='Ngày tạo' sortKey='createdAt' sortConfig={sortConfig} onSort={handleSort} />
               <th></th>
             </tr>
           </thead>
@@ -91,6 +97,11 @@ const UserListScreen = ({ history }) => {
                   ) : (
                     <i className='fas fa-times' style={{ color: 'red' }}></i>
                   )}
+                </td>
+                <td>
+                  {user.createdAt
+                    ? new Date(user.createdAt).toLocaleDateString('vi-VN')
+                    : '—'}
                 </td>
                 <td>
                   <LinkContainer to={`/admin/user/${user._id}/edit`}>

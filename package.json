@@ -9,7 +9,8 @@
     "server": "cross-env NODE_ENV=development nodemon backend/server.js",
     "client": "npm start --prefix frontend",
     "data:import": "node backend/seeder.js",
-    "data:destroy": "node backend/seeder.js -d"
+    "data:destroy": "node backend/seeder.js -d",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --config backend/jest.config.js"
   },
   "author": "Brad Traversy",
   "license": "MIT",
@@ -19,21 +20,28 @@
     "cloudinary": "^2.5.1",
     "colors": "^1.4.0",
     "dotenv": "^8.2.0",
+    "exceljs": "^4.4.0",
     "express": "^4.17.1",
     "express-async-handler": "^1.1.4",
+    "helmet": "^7.1.0",
     "jsonwebtoken": "^8.5.1",
     "mongoose": "^9.4.1",
     "morgan": "^1.10.0",
-    "multer": "^1.4.2",
+    "multer": "^1.4.4-lts.1",
     "multer-storage-cloudinary": "^4.0.0",
     "nodemailer": "^9.0.3",
     "passport": "^0.7.0",
     "passport-google-oauth20": "^2.0.0",
-    "socket.io": "^4.8.3"
+    "pdfkit": "^0.15.1",
+    "sharp": "^0.33.5",
+    "socket.io": "^4.8.3",
+    "string-similarity": "^4.0.4",
+    "winston": "^3.13.0"
   },
   "devDependencies": {
     "concurrently": "^5.3.0",
     "cross-env": "^10.1.0",
+    "jest": "^29.7.0",
     "nodemon": "^2.0.22"
   }
 }

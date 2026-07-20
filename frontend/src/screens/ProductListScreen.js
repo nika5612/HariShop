@@ -12,6 +12,8 @@ import {
 } from '../actions/productActions'
 import { PRODUCT_CREATE_RESET } from '../constants/productConstants'
 import ConfirmDeleteModal from '../components/ConfirmDeleteModal'
+import SortableHeader from '../components/SortableHeader'
+import { useTableSort, sortConfigToQuery } from '../utils/sortHelper'
 
 
 const ProductListScreen = ({ history, match }) => {
@@ -38,6 +40,9 @@ const ProductListScreen = ({ history, match }) => {
   const userLogin = useSelector((state) => state.userLogin)
   const { userInfo } = userLogin
 
+  // MỚI: sort theo cột kiểu FC Online (click header) — thay cho dropdown
+  const { sortConfig, handleSort } = useTableSort()
+
   useEffect(() => {
     dispatch({ type: PRODUCT_CREATE_RESET })
 
@@ -45,13 +50,14 @@ const ProductListScreen = ({ history, match }) => {
       history.push('/login')
     }
 
-    dispatch(listProducts('', pageNumber))
+    dispatch(listProducts(sortConfigToQuery(sortConfig), pageNumber))
   }, [
     dispatch,
     history,
     userInfo,
     successDelete,
     pageNumber,
+    sortConfig,
   ])
 
   const [showConfirm, setShowConfirm] = useState(false)
@@ -107,13 +113,16 @@ const ProductListScreen = ({ history, match }) => {
             <thead>
               <tr>
                 <th>ID</th>
-                <th>Tên</th>
-                <th>Giá</th>
+                <SortableHeader label='Tên' sortKey='name' sortConfig={sortConfig} onSort={handleSort} />
+                <SortableHeader label='Giá' sortKey='price' sortConfig={sortConfig} onSort={handleSort} />
                 <th>Trọng lượng</th>
-                <th>Danh Mục</th>
-                <th>Hãng</th>
+                <SortableHeader label='Danh Mục' sortKey='category' sortConfig={sortConfig} onSort={handleSort} />
+                <SortableHeader label='Hãng' sortKey='brand' sortConfig={sortConfig} onSort={handleSort} />
                 <th>Màu sắc</th>
                 <th>Thông số</th>
+                <SortableHeader label='Tồn kho' sortKey='countInStock' sortConfig={sortConfig} onSort={handleSort} />
+                <SortableHeader label='Đánh giá' sortKey='rating' sortConfig={sortConfig} onSort={handleSort} />
+                <SortableHeader label='Ngày tạo' sortKey='createdAt' sortConfig={sortConfig} onSort={handleSort} />
                 <th></th>
 
 
@@ -153,6 +162,14 @@ const ProductListScreen = ({ history, match }) => {
                         </span>
                       )
                     })()}
+                  </td>
+
+                  <td>{Number.isFinite(product.countInStock) ? product.countInStock : 0}</td>
+                  <td>{Number(product.rating || 0).toFixed(1)} ★</td>
+                  <td>
+                    {product.createdAt
+                      ? new Date(product.createdAt).toLocaleDateString('vi-VN')
+                      : '—'}
                   </td>
 
                   <td>

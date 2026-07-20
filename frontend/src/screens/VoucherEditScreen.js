@@ -41,11 +41,14 @@ const VoucherEditScreen = () => {
   const initialForm = useMemo(() => {
     return {
       code: '',
+      name: '',
       type: 'percent',
       value: 0,
       minOrder: 0,
       maxDiscount: 0,
       usageLimit: 0,
+      perUserLimit: 1,
+      applicableCategories: '',
       startsAt: '',
       expiresAt: '',
       isActive: true,
@@ -75,11 +78,14 @@ const VoucherEditScreen = () => {
 
     setForm({
       code: v.code || '',
+      name: v.name || '',
       type: v.type || 'percent',
       value: Number(v.value || 0),
       minOrder: Number(v.minOrder || 0),
       maxDiscount: Number(v.maxDiscount || 0),
       usageLimit: Number(v.usageLimit || 0),
+      perUserLimit: v.perUserLimit !== undefined ? Number(v.perUserLimit) : 1,
+      applicableCategories: Array.isArray(v.applicableCategories) ? v.applicableCategories.join(', ') : '',
       startsAt: v.startsAt ? toInputDateTime(v.startsAt) : '',
       expiresAt: v.expiresAt ? toInputDateTime(v.expiresAt) : '',
       isActive: Boolean(v.isActive),
@@ -110,11 +116,17 @@ const VoucherEditScreen = () => {
 
     const payload = {
       code: String(form.code || '').trim().toUpperCase(),
+      name: String(form.name || '').trim(),
       type: form.type,
       value: Number(form.value || 0),
       minOrder: Number(form.minOrder || 0),
       maxDiscount: Number(form.maxDiscount || 0),
       usageLimit: Number(form.usageLimit || 0),
+      perUserLimit: Number(form.perUserLimit || 0),
+      applicableCategories: String(form.applicableCategories || '')
+        .split(',')
+        .map((c) => c.trim())
+        .filter(Boolean),
       startsAt: form.startsAt ? new Date(form.startsAt) : null,
       expiresAt: form.expiresAt ? new Date(form.expiresAt) : null,
       isActive: Boolean(form.isActive),
@@ -122,7 +134,7 @@ const VoucherEditScreen = () => {
 
     // Basic client-side checks
     if (!payload.code) return alert('code bắt buộc')
-    if (!['percent', 'fixed'].includes(payload.type)) return alert('type phải là percent hoặc fixed')
+    if (!['percent', 'fixed', 'freeship'].includes(payload.type)) return alert('type phải là percent, fixed hoặc freeship')
     if (!payload.expiresAt || isNaN(payload.expiresAt.getTime())) return alert('expiresAt không hợp lệ')
     if (payload.value < 0) return alert('value không hợp lệ')
     if (payload.minOrder < 0) return alert('minOrder không hợp lệ')
@@ -183,15 +195,23 @@ const VoucherEditScreen = () => {
         </Form.Group>
 
         <Form.Group className='mb-3'>
+          <Form.Label>Tên hiển thị (khách sẽ thấy tên này)</Form.Label>
+          <Form.Control name='name' value={form.name} onChange={onChange} placeholder='VD: Giảm 50K cho đơn từ 500K' />
+        </Form.Group>
+
+        <Form.Group className='mb-3'>
           <Form.Label>Loại</Form.Label>
           <Form.Control as='select' name='type' value={form.type} onChange={onChange}>
             <option value='percent'>percent (%)</option>
             <option value='fixed'>fixed (VNĐ)</option>
+            <option value='freeship'>freeship (miễn phí vận chuyển)</option>
           </Form.Control>
         </Form.Group>
 
         <Form.Group className='mb-3'>
-          <Form.Label>Giá trị (value)</Form.Label>
+          <Form.Label>
+            Giá trị (value) {form.type === 'freeship' ? '— mức giảm tối đa cho phí ship, 0 = miễn phí toàn bộ' : ''}
+          </Form.Label>
           <Form.Control type='number' name='value' value={form.value} onChange={onChange} />
         </Form.Group>
 
@@ -201,13 +221,23 @@ const VoucherEditScreen = () => {
         </Form.Group>
 
         <Form.Group className='mb-3'>
-          <Form.Label>Max giảm (maxDiscount)</Form.Label>
+          <Form.Label>Max giảm (maxDiscount) — chỉ áp dụng cho loại percent</Form.Label>
           <Form.Control type='number' name='maxDiscount' value={form.maxDiscount} onChange={onChange} />
         </Form.Group>
 
         <Form.Group className='mb-3'>
           <Form.Label>Giới hạn lượt (usageLimit) - 0 = không giới hạn</Form.Label>
           <Form.Control type='number' name='usageLimit' value={form.usageLimit} onChange={onChange} />
+        </Form.Group>
+
+        <Form.Group className='mb-3'>
+          <Form.Label>Giới hạn mỗi người dùng (perUserLimit) - 0 = không giới hạn, mặc định 1</Form.Label>
+          <Form.Control type='number' name='perUserLimit' value={form.perUserLimit} onChange={onChange} />
+        </Form.Group>
+
+        <Form.Group className='mb-3'>
+          <Form.Label>Áp dụng cho danh mục (cách nhau bởi dấu phẩy, để trống = toàn shop)</Form.Label>
+          <Form.Control name='applicableCategories' value={form.applicableCategories} onChange={onChange} placeholder='VD: Điện thoại, Phụ kiện' />
         </Form.Group>
 
         <Form.Group className='mb-3'>
@@ -245,6 +275,3 @@ const VoucherEditScreen = () => {
 }
 
 export default VoucherEditScreen
-
-
-

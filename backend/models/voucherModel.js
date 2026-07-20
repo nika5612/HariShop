@@ -10,10 +10,17 @@ const voucherSchema = mongoose.Schema(
       uppercase: true,
     },
 
+    // MỚI: tên hiển thị cho khách (VD: "Giảm 50K cho đơn từ 500K") —
+    // trước đây chỉ có code, khách nhìn mã không biết voucher gì.
+    name: {
+      type: String,
+      default: '',
+    },
+
     type: {
       type: String,
       required: true,
-      enum: ['percent', 'fixed'],
+      enum: ['percent', 'fixed', 'freeship'], // MỚI: thêm loại freeship
     },
 
     value: {
@@ -34,7 +41,7 @@ const voucherSchema = mongoose.Schema(
       default: 0,
     },
 
-    // 0 = không giới hạn
+    // 0 = không giới hạn (tổng toàn hệ thống)
     usageLimit: {
       type: Number,
       required: true,
@@ -45,6 +52,29 @@ const voucherSchema = mongoose.Schema(
       type: Number,
       required: true,
       default: 0,
+    },
+
+    // MỚI: giới hạn lượt dùng CHO MỖI USER — 0 = không giới hạn,
+    // mặc định 1 = mỗi người chỉ được dùng 1 lần (giống Shopee).
+    perUserLimit: {
+      type: Number,
+      required: true,
+      default: 1,
+    },
+
+    // MỚI: danh sách user đã dùng voucher này — dùng để tính perUserLimit
+    // và trả lỗi "Bạn đã sử dụng voucher này".
+    usedBy: [
+      {
+        user:   { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        usedAt: { type: Date, default: Date.now },
+      },
+    ],
+
+    // MỚI: danh mục sản phẩm được áp dụng — rỗng = áp dụng toàn shop.
+    applicableCategories: {
+      type: [String],
+      default: [],
     },
 
     // Ngày bắt đầu hiệu lực (optional — null = hiệu lực ngay)

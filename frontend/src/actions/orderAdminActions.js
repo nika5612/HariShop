@@ -95,6 +95,59 @@ export const getRevenueAnalytics = (params = {}) => async (dispatch, getState) =
   }
 }
 
+// ── MỚI: helper dùng chung — tải file (blob) trả về từ backend và kích
+// hoạt download ngay trên trình duyệt (cần vì request có header
+// Authorization nên không thể dùng window.location.href trực tiếp).
+const downloadBlob = (blob, filename) => {
+  const url = window.URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.setAttribute('download', filename)
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  window.URL.revokeObjectURL(url)
+}
+
+// MỚI: xuất danh sách đơn hàng theo khoảng thời gian ra Excel (.xlsx)
+export const exportOrdersToExcel = (params = {}) => async (dispatch, getState) => {
+  const { userLogin: { userInfo } } = getState()
+  const config = {
+    headers: { Authorization: `Bearer ${userInfo.token}` },
+    responseType: 'blob',
+  }
+
+  const query = new URLSearchParams(
+    Object.entries(params).reduce((acc, [k, v]) => {
+      if (v !== undefined && v !== null && v !== '') acc[k] = v
+      return acc
+    }, {})
+  ).toString()
+
+  const response = await axios.get(`/api/orders/admin/export/excel?${query}`, config)
+  const filename = `don-hang_${params.startDate || 'all'}_${params.endDate || 'all'}.xlsx`
+  downloadBlob(response.data, filename)
+}
+
+// MỚI: xuất báo cáo doanh thu (kèm biểu đồ + bảng thống kê) ra PDF
+export const exportRevenueToPdf = (params = {}) => async (dispatch, getState) => {
+  const { userLogin: { userInfo } } = getState()
+  const config = {
+    headers: { Authorization: `Bearer ${userInfo.token}` },
+    responseType: 'blob',
+  }
+
+  const query = new URLSearchParams(
+    Object.entries(params).reduce((acc, [k, v]) => {
+      if (v !== undefined && v !== null && v !== '') acc[k] = v
+      return acc
+    }, {})
+  ).toString()
+
+  const response = await axios.get(`/api/orders/admin/export/pdf?${query}`, config)
+  downloadBlob(response.data, `bao-cao-doanh-thu.pdf`)
+}
+
 export const deleteOrderByAdmin = (orderId) => async (dispatch, getState) => {
   try {
     dispatch({ type: ORDER_ADMIN_DELETE_REQUEST })

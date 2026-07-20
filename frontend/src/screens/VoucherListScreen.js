@@ -90,6 +90,7 @@ const VoucherListScreen = ({ history }) => {
             <thead>
               <tr>
                 <th>Mã</th>
+                <th>Tên</th>
                 <th>Loại</th>
                 <th>Giá trị</th>
                 <th>Đơn tối thiểu</th>
@@ -109,7 +110,8 @@ const VoucherListScreen = ({ history }) => {
                 return (
                   <tr key={v?._id || v?.id}>
                     <td>{v?.code}</td>
-                    <td>{v?.type === 'percent' ? '%' : 'VNĐ'}</td>
+                    <td>{v?.name || '—'}</td>
+                    <td>{v?.type === 'percent' ? '%' : v?.type === 'freeship' ? 'Freeship' : 'VNĐ'}</td>
                     <td>{Number(v?.value || 0).toLocaleString('vi-VN')}</td>
                     <td>{Number(v?.minOrder || 0).toLocaleString('vi-VN')}đ</td>
                     <td>{Number(v?.maxDiscount || 0).toLocaleString('vi-VN')}đ</td>
@@ -160,4 +162,3 @@ const VoucherListScreen = ({ history }) => {
 }
 
 export default VoucherListScreen
-

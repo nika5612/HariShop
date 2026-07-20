@@ -57,15 +57,30 @@ const getProducts = asyncHandler(async (req, res) => {
 
   const filter = { ...keyword, ...brandFilter, ...priceFilter }
 
-  // MỚI (B8): ưu tiên sản phẩm đang Flash Sale lên đầu danh sách — áp dụng cho mọi nơi
-  // dùng chung endpoint này (trang chủ, lọc theo hãng/giá, tìm kiếm từ khoá).
-  // "Đang Flash Sale" được tính TẠI THỜI ĐIỂM TRUY VẤN (so ngày giờ hiện tại với
-  // flashSale.startsAt/endsAt) bằng aggregation, không cần cột riêng lưu sẵn.
-  const now = new Date()
-  const aggregateSort = {
-    isCurrentlyOnSale: -1, // 1 = đang sale → lên đầu, 0 = không sale → xuống dưới
-    ...sortOption,
+  // ── MỚI: sort theo cột kiểu FC Online (click header ở trang quản lý
+  // sản phẩm). Whitelist field để tránh client truyền field tuỳ ý vào
+  // .sort() (NoSQL injection / lỗi lạ khi field không tồn tại).
+  const SORTABLE_PRODUCT_FIELDS = {
+    name: 'name',
+    price: 'price',
+    category: 'category',
+    brand: 'brand',
+    countInStock: 'countInStock',
+    rating: 'rating',
+    createdAt: 'createdAt',
   }
+  const requestedSortBy = req.query.sortBy
+  const requestedOrder = req.query.order === 'asc' ? 1 : req.query.order === 'desc' ? -1 : null
+  const columnSortField = SORTABLE_PRODUCT_FIELDS[requestedSortBy]
+  const hasColumnSort = Boolean(columnSortField) && requestedOrder !== null
+
+  const now = new Date()
+  const aggregateSort = hasColumnSort
+    ? { [columnSortField]: requestedOrder }
+    : {
+        isCurrentlyOnSale: -1, // 1 = đang sale → lên đầu, 0 = không sale → xuống dưới
+        ...sortOption,
+      }
 
   const [totalCount, products] = await Promise.all([
     Product.countDocuments(filter),
@@ -117,7 +132,7 @@ const getProductById = asyncHandler(async (req, res) => {
 const deleteProduct = asyncHandler(async (req, res) => {
   const product = await Product.findById(req.params.id)
   if (product) {
-    await product.remove()
+    await product.deleteOne()
     res.json({ message: 'Product removed' })
   } else {
     res.status(404)
@@ -125,11 +140,6 @@ const deleteProduct = asyncHandler(async (req, res) => {
   }
 })
 
-// ═══════════════════ B4: Gợi ý sản phẩm thông minh ═══════════════════
-
-// @desc    Sản phẩm tương tự + sản phẩm khách hàng thường mua cùng (cho trang chi tiết sản phẩm)
-// @route   GET /api/products/:id/related
-// @access  Public
 const getRelatedProducts = asyncHandler(async (req, res) => {
   const product = await Product.findById(req.params.id).select('brand category price').lean()
   if (!product) {
@@ -137,7 +147,6 @@ const getRelatedProducts = asyncHandler(async (req, res) => {
     throw new Error('Product not found')
   }
 
-  // ── Sản phẩm tương tự: cùng brand và/hoặc category, ưu tiên giá gần nhau ──
   const candidates = await Product.find({
     _id: { $ne: product._id },
     $or: [{ brand: product.brand }, { category: product.category }],
@@ -158,9 +167,6 @@ const getRelatedProducts = asyncHandler(async (req, res) => {
     .slice(0, 8)
     .map((s) => s.product)
 
-  // ── Khách hàng thường mua cùng: phân tích collection Orders ──
-  // Tìm các đơn (chưa hủy) có chứa sản phẩm này, gom các sản phẩm KHÁC xuất hiện cùng đơn,
-  // đếm số lần xuất hiện, xếp hạng theo tần suất.
   const frequentlyBoughtRaw = await Order.aggregate([
     { $match: { isCancelled: { $ne: true }, 'orderItems.product': product._id } },
     { $unwind: '$orderItems' },
@@ -186,9 +192,6 @@ const getRelatedProducts = asyncHandler(async (req, res) => {
   })
 })
 
-// @desc    Gợi ý sản phẩm cá nhân hoá dựa trên lịch sử đơn hàng của khách đang đăng nhập
-// @route   GET /api/products/personalized
-// @access  Private
 const getPersonalizedProducts = asyncHandler(async (req, res) => {
   const userOrders = await Order.find({ user: req.user._id, isCancelled: { $ne: true } })
     .select('orderItems.product')
@@ -200,7 +203,6 @@ const getPersonalizedProducts = asyncHandler(async (req, res) => {
   }))
 
   if (purchasedProductIds.size === 0) {
-    // Khách chưa có lịch sử mua hàng → không đủ dữ liệu để cá nhân hoá
     return res.json({ products: [] })
   }
 
@@ -241,11 +243,6 @@ const getPersonalizedProducts = asyncHandler(async (req, res) => {
 const MIN_REVIEWS_FOR_SUMMARY = 3 // cần ít nhất 3 đánh giá mới đủ dữ liệu để AI tổng hợp
 const MAX_SAMPLE_PER_RATING = 12  // tối đa 12 đánh giá / mỗi mức sao (1-5⭐) đưa vào mẫu cho AI
 
-// Lấy mẫu ĐẠI DIỆN từ toàn bộ đánh giá — thay vì cắt mù quáng theo thứ tự (dễ bỏ sót
-// hàng nghìn đánh giá, thiên lệch), chia theo từng mức sao (1-5⭐) rồi lấy tối đa
-// MAX_SAMPLE_PER_RATING đánh giá CÓ NỘI DUNG DÀI/CHI TIẾT NHẤT ở mỗi mức.
-// Nhờ vậy, dù sản phẩm có 5.000 đánh giá 5⭐ và chỉ 10 đánh giá 1⭐, các phàn nàn (1-2⭐)
-// vẫn được đưa vào mẫu đầy đủ thay vì bị "chìm" mất — cho ra tóm tắt cân bằng hơn.
 const selectRepresentativeSample = (reviews) => {
   const byRating = { 1: [], 2: [], 3: [], 4: [], 5: [] }
   reviews.forEach((r) => {

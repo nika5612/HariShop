@@ -4,14 +4,13 @@ import Order from '../models/orderModel.js'
 import Product from '../models/productModel.js'
 import Settings from '../models/settingsModel.js'
 import Voucher from '../models/voucherModel.js'
+import { applyVoucherLogic } from './voucherController.js'
+import { resolvePeriodRange } from '../utils/reportPeriod.js'
 import { createNotification } from './notificationController.js'
 import { computeFlashSale } from '../utils/flashSale.js'
+import ghtkProvider from '../services/shipping/providers/ghtk.js'
+import logger from '../utils/logger.js'
 
-
-// ĐÃ SỬA: KHÔNG tính USE_SANDBOX/GHN_BASE_URL là `const` ở top-level — ES
-// Modules nạp file này TRƯỚC khi dotenv.config() chạy trong server.js, nên
-// process.env.GHN_USE_SANDBOX luôn undefined tại thời điểm đó, làm giá trị
-// bị "đóng băng" là false vĩnh viễn dù .env ghi true. Phải bọc trong hàm.
 function isSandbox() {
   return (process.env.GHN_USE_SANDBOX || '').trim() === 'true'
 }
@@ -475,6 +474,42 @@ const addOrderItems = asyncHandler(async (req, res) => {
     ? Number(frontendTotalWeight)
     : computedTotalWeight
 
+  // ── MỚI: validate voucher TRƯỚC KHI tạo đơn (fail-fast). Trước đây
+  // việc kiểm tra voucher chạy SAU khi đơn đã được lưu — nếu voucher hoá
+  // ra không hợp lệ (hết lượt/hết hạn/vượt giới hạn user) thì đơn vẫn
+  // được tạo với giảm giá đã tính sẵn, chỉ là usedCount không tăng. Giờ
+  // nếu voucher không hợp lệ, từ chối tạo đơn ngay — đúng yêu cầu "Nếu
+  // không hợp lệ → Không tạo đơn, trả lỗi tương ứng".
+  let voucherDoc = null
+  const normalizedVoucherCode = String(voucherCode || '').trim().toUpperCase()
+  if (normalizedVoucherCode) {
+    voucherDoc = await Voucher.findOne({ code: normalizedVoucherCode })
+    if (!voucherDoc) {
+      res.status(400)
+      throw new Error('Mã voucher không tồn tại')
+    }
+    const categories = [...new Set(
+      orderItems.map((item) => productMap[item.product?.toString()]?.category).filter(Boolean)
+    )]
+    const check = applyVoucherLogic({
+      voucher: voucherDoc,
+      orderAmount: itemsPrice,
+      userId: req.user._id,
+      shippingFee: deliveryFee || 0,
+      categories,
+    })
+    if (!check.ok) {
+      res.status(400)
+      throw new Error(check.message)
+    }
+    // Số tiền giảm phải khớp với những gì backend tự tính — không tin số
+    // frontend gửi lên (tránh gian lận sửa voucherDiscount trực tiếp).
+    if (Math.abs(Number(voucherDiscount || 0) - check.discountAmount) > 1) {
+      res.status(409)
+      throw new Error('Số tiền giảm giá không khớp, vui lòng thử lại từ giỏ hàng.')
+    }
+  }
+
   const order = new Order({
 
     orderItems: orderItems.map((item) => ({
@@ -496,12 +531,16 @@ const addOrderItems = asyncHandler(async (req, res) => {
     shippingServiceCode: shippingServiceCode || '',
     shippingServiceName: shippingServiceName || '',
     shippingEtaDate:     shippingEtaDate ? new Date(shippingEtaDate) : undefined,
-    voucherCode:         voucherCode || '',
+    voucherCode:         voucherDoc ? voucherDoc.code : '',
+    voucherId:           voucherDoc ? voucherDoc._id : undefined,
+    voucherName:         voucherDoc ? voucherDoc.name : '',
+    discountType:        voucherDoc ? voucherDoc.type : '',
+    discountValue:       voucherDoc ? voucherDoc.value : 0,
     shopMessage:         shopMessage || '',
     totalWeight,
     itemsPrice,
     deliveryFee:         deliveryFee || 0,
-    voucherDiscount:     voucherDiscount || 0,
+    voucherDiscount:     voucherDoc ? (voucherDiscount || 0) : 0,
     taxPrice:            taxPrice || 0,
     shippingPrice:       shippingPrice || 0,
     totalPrice,
@@ -516,42 +555,28 @@ const addOrderItems = asyncHandler(async (req, res) => {
   const createdOrder = await order.save()
 
   // ─────────────────────────────────────────────────────────────
-  // MỚI: tăng usedCount khi đặt hàng thành công (non-blocking)
+  // MỚI: tăng usedCount + ghi nhận user đã dùng (non-blocking, best-effort
+  // — voucher đã được validate chặt ở trên nên đây chỉ còn là ghi nhận,
+  // vẫn giữ điều kiện trong findOneAndUpdate để an toàn khi có 2 request
+  // cùng lúc chạm giới hạn usageLimit).
   // ─────────────────────────────────────────────────────────────
-  try {
-    const voucherCode = String(createdOrder?.voucherCode || '').trim().toUpperCase()
-    if (voucherCode) {
-      const voucher = await Voucher.findOne({ code: voucherCode }).lean()
-      if (voucher) {
-        const isActive = voucher.isActive === true
-        const expiresAt = voucher.expiresAt ? new Date(voucher.expiresAt) : null
-        const now = new Date()
-        const notExpired = expiresAt ? expiresAt.getTime() > now.getTime() : true
-
-        const usageLimit = Number(voucher.usageLimit || 0)
-        const usedCount = Number(voucher.usedCount || 0)
-        const hasRemaining = usageLimit === 0 ? true : usedCount < usageLimit
-
-        const minOrder = Number(voucher.minOrder || 0)
-        const orderAmount = Number(createdOrder?.itemsPrice || 0)
-        const meetsMin = orderAmount >= minOrder
-
-        if (isActive && notExpired && hasRemaining && meetsMin) {
-          const condition = { code: voucherCode, isActive: true }
-          if (usageLimit > 0) {
-            condition.usedCount = { $lt: usageLimit }
-          }
-
-          await Voucher.findOneAndUpdate(
-            condition,
-            { $inc: { usedCount: 1 } },
-            { new: false }
-          )
-        }
+  if (voucherDoc) {
+    try {
+      const condition = { code: voucherDoc.code, isActive: true }
+      if (Number(voucherDoc.usageLimit || 0) > 0) {
+        condition.usedCount = { $lt: voucherDoc.usageLimit }
       }
+      await Voucher.findOneAndUpdate(
+        condition,
+        {
+          $inc: { usedCount: 1 },
+          $push: { usedBy: { user: req.user._id, usedAt: new Date() } },
+        },
+        { new: false }
+      )
+    } catch (e) {
+      console.error('❌ Voucher usedCount update error (non-fatal):', e.message)
     }
-  } catch (e) {
-    console.error('❌ Voucher usedCount update error (non-fatal):', e.message)
   }
 
   try {
@@ -743,6 +768,16 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
     order.cancelledAt = order.cancelledAt || new Date()
   }
 
+  // ── MỚI: hoàn tồn kho khi đơn kết thúc hẳn ở trạng thái 'cancelled'
+  // hoặc 'returned' (khách trả hàng sau khi đã nhận). Không hoàn ở
+  // 'delivery_failed' vì đơn còn có thể giao lại — chỉ hoàn khi đã
+  // chắc chắn không đến tay khách. Có cờ stockRestored chống hoàn 2 lần
+  // (ví dụ đơn từng được hoàn qua approveCancelOrder trước đó).
+  if (status === 'cancelled' || status === 'returned') {
+    await restoreStockForOrder(order)
+    await revertVoucherForOrder(order)
+  }
+
   const updatedOrder = await order.save()
 
   // ── MỚI: thông báo Admin khi trạng thái chuyển sang giao thành công ──
@@ -779,8 +814,108 @@ const getMyOrders = asyncHandler(async (req, res) => {
 // @desc    Get all orders
 // @route   GET /api/orders
 // @access  Private/Admin
+// ── MỚI: sort theo cột kiểu FC Online (click header) cho trang admin
+// quản lý đơn hàng. Vì "Tên khách" nằm ở collection User (ref populate)
+// và "Trạng thái thanh toán"/"Trạng thái giao hàng" là dữ liệu có Ý
+// NGHĨA NGHIỆP VỤ theo thứ tự riêng (không phải chuỗi để sort a-z),
+// nên không thể dùng Order.find().sort() đơn thuần — phải dùng
+// aggregation pipeline:
+//  - $lookup + $unwind để join sang User (thay cho .populate())
+//  - $addFields tính "rank" số cho paymentStatus/deliveryStatus theo
+//    đúng thứ tự tiến trình nghiệp vụ, rồi sort theo rank đó.
 const getOrders = asyncHandler(async (req, res) => {
-  const orders = await Order.find({}).populate('user', 'id name')
+  const requestedOrder = req.query.order === 'asc' ? 1 : req.query.order === 'desc' ? -1 : null
+  const sortBy = req.query.sortBy
+  const hasColumnSort = Boolean(sortBy) && requestedOrder !== null
+
+  // Rank "Trạng thái giao hàng" theo đúng thứ tự tiến trình vận chuyển
+  // (không sort chuỗi a-z, ví dụ "cancelled" không được đứng trước "confirmed").
+  const deliveryStatusRankSwitch = {
+    $switch: {
+      branches: ORDER_STATUSES.map((status, index) => ({
+        case: { $eq: ['$status', status] },
+        then: index,
+      })),
+      // Đơn cũ chưa có field `status` (trước khi có timeline 12 trạng thái):
+      // suy ra rank tạm từ isDelivered/isCancelled để không bị lỗi/loại khỏi sort.
+      default: {
+        $cond: [
+          { $eq: ['$isCancelled', true] },
+          ORDER_STATUSES.indexOf('cancelled'),
+          {
+            $cond: [
+              { $eq: ['$isDelivered', true] },
+              ORDER_STATUSES.indexOf('delivered'),
+              ORDER_STATUSES.indexOf('pending'),
+            ],
+          },
+        ],
+      },
+    },
+  }
+
+  // Rank "Trạng thái thanh toán" theo đúng ý nghĩa hiển thị ở
+  // OrderListScreen (renderPaymentStatus): chưa thanh toán < yêu cầu
+  // hoàn tiền < từ chối hoàn tiền < đã thanh toán < đã hoàn tiền.
+  const paymentStatusRankSwitch = {
+    $switch: {
+      branches: [
+        { case: { $eq: ['$refundStatus', 'completed'] }, then: 4 },
+        { case: { $eq: ['$refundStatus', 'rejected'] }, then: 2 },
+        { case: { $eq: ['$refundStatus', 'requested'] }, then: 1 },
+        { case: { $eq: ['$isPaid', true] }, then: 3 },
+      ],
+      default: 0,
+    },
+  }
+
+  const pipeline = [
+    { $lookup: { from: 'users', localField: 'user', foreignField: '_id', as: '_userDoc' } },
+    { $unwind: { path: '$_userDoc', preserveNullAndEmptyArrays: true } },
+    {
+      $addFields: {
+        user: { _id: '$_userDoc._id', name: '$_userDoc.name' },
+        deliveryStatusRank: deliveryStatusRankSwitch,
+        paymentStatusRank: paymentStatusRankSwitch,
+      },
+    },
+    { $project: { _userDoc: 0 } },
+  ]
+
+  let sortStage = { createdAt: -1 } // mặc định: đơn mới nhất lên đầu
+  if (hasColumnSort) {
+    switch (sortBy) {
+      case 'orderId':
+        sortStage = { _id: requestedOrder }
+        break
+      case 'customerName':
+        sortStage = { '_userDoc.name': requestedOrder }
+        break
+      case 'totalPrice':
+        sortStage = { totalPrice: requestedOrder }
+        break
+      case 'paymentStatus':
+        sortStage = { paymentStatusRank: requestedOrder }
+        break
+      case 'deliveryStatus':
+        sortStage = { deliveryStatusRank: requestedOrder }
+        break
+      case 'createdAt':
+        sortStage = { createdAt: requestedOrder }
+        break
+      default:
+        sortStage = { createdAt: -1 }
+    }
+  }
+
+  // customerName cần sort TRƯỚC KHI $project xoá _userDoc
+  if (sortBy === 'customerName' && hasColumnSort) {
+    pipeline.splice(3, 0, { $sort: sortStage })
+  } else {
+    pipeline.push({ $sort: sortStage })
+  }
+
+  const orders = await Order.aggregate(pipeline)
   res.json(orders)
 })
 
@@ -801,6 +936,71 @@ const GHN_TO_ORDER_STATUS = {
   return:        'returning',
   returned:      'returned',
   cancel:        'cancelled',
+}
+
+// ⚠️ MỚI: mapping mã trạng thái GHTK (1-12, theo tài liệu công khai của GHTK)
+// sang 12 trạng thái nội bộ. GIỐNG GHI CHÚ trong services/shipping/providers/
+// ghtk.js: hàm track() gọi API này CHƯA từng được đối chiếu với 1 đơn GHTK
+// THẬT — nếu bạn dùng GHTK thật, nên tạo 1 đơn test, gọi thử endpoint
+// /api/orders/:id/track, so sánh currentStatusCode trả về với bảng mã dưới
+// đây trước khi tin tưởng hoàn toàn vào auto-sync này.
+const GHTK_TO_ORDER_STATUS = {
+  '1':  'pending',           // Chưa tiếp nhận
+  '2':  'confirmed',         // Đã tiếp nhận
+  '3':  'picked_up',         // Đã lấy hàng / đã nhập kho
+  '4':  'out_for_delivery',  // Đã điều phối giao hàng / đang giao
+  '5':  'delivered',         // Đã giao hàng (chưa đối soát)
+  '6':  'delivered',         // Đã đối soát (giao thành công, đã chốt tiền COD)
+  '7':  'delivery_failed',   // Không lấy được hàng
+  '8':  'waiting_pickup',    // Hoãn lấy hàng
+  '9':  'delivery_failed',   // Không giao được hàng
+  '10': 'out_for_delivery',  // Delay giao hàng (vẫn đang giao, chỉ trễ)
+  '11': 'cancelled',         // Hủy đơn hàng
+  '12': 'returned',          // Bồi hoàn (trả hàng về, đã hoàn tiền COD)
+  '13': 'in_transit',        // Delay đơn hàng (trễ chung chung)
+  '20': 'pending',           // Chờ xác nhận hủy
+}
+
+// MỚI: bản GHTK của syncOrderStatusFromGHN — cấu trúc giống hệt để dễ đối
+// chiếu, dùng chung các helper hoàn kho/hoàn voucher/thông báo đã có sẵn.
+async function syncOrderStatusFromGHTK(order) {
+  const trackingId = order.ghtkLabelCode
+  if (!trackingId) {
+    return { available: false, reason: 'Đơn hàng chưa có mã vận đơn GHTK' }
+  }
+
+  const { events, currentStatusCode } = await ghtkProvider.track(trackingId)
+
+  const mappedStatus = GHTK_TO_ORDER_STATUS[currentStatusCode]
+  let statusChanged = false
+  if (mappedStatus && mappedStatus !== order.status && !order.isCancelled) {
+    pushStatusHistory(order, mappedStatus, `Tự động cập nhật từ GHTK (mã ${currentStatusCode})`)
+    if (mappedStatus === 'cancelled') {
+      order.isCancelled = true
+      order.cancelledAt = order.cancelledAt || new Date()
+    }
+    if (mappedStatus === 'delivered') {
+      order.isDelivered = true
+      order.deliveredAt = order.deliveredAt || new Date()
+    }
+    if (mappedStatus === 'cancelled' || mappedStatus === 'returned') {
+      await restoreStockForOrder(order)
+      await revertVoucherForOrder(order)
+    }
+    await order.save()
+    await notifyCustomerOrderStatus(order, mappedStatus)
+    await handleCodRestrictionOnStatusChange(order, mappedStatus)
+    statusChanged = true
+  }
+
+  return {
+    available: true,
+    orderCode: trackingId,
+    currentStatus: currentStatusCode,
+    events,
+    estimatedDelivery: order.shippingEtaDate || null,
+    statusChanged,
+  }
 }
 
 // MỚI: Tách phần "gọi GHN lấy trạng thái mới nhất + tự cập nhật đơn hàng nội
@@ -833,6 +1033,25 @@ async function syncOrderStatusFromGHN(order) {
   let statusChanged = false
   if (mappedStatus && mappedStatus !== order.status && !order.isCancelled) {
     pushStatusHistory(order, mappedStatus, `Tự động cập nhật từ GHN (${ghnOrder?.status})`)
+    if (mappedStatus === 'cancelled') {
+      order.isCancelled = true
+      order.cancelledAt = order.cancelledAt || new Date()
+    }
+    // SỬA: cùng loại lỗi vừa phát hiện ở nhánh 'cancelled' — trước đây khi
+    // GHN tự báo "đã giao" qua auto-sync (không phải admin bấm tay), cờ
+    // isDelivered không hề được set true dù status đã là 'delivered'.
+    if (mappedStatus === 'delivered') {
+      order.isDelivered = true
+      order.deliveredAt = order.deliveredAt || new Date()
+    }
+    // ── MỚI: hoàn tồn kho khi GHN báo đơn đã hủy/hoàn về — đây là
+    // đường dẫn thứ 3 (ngoài approveCancelOrder và updateOrderStatus)
+    // trước đây bị bỏ sót, khiến đơn bị hủy TRÊN GHN rồi đồng bộ về
+    // hệ thống nội bộ không hề hoàn kho.
+    if (mappedStatus === 'cancelled' || mappedStatus === 'returned') {
+      await restoreStockForOrder(order)
+      await revertVoucherForOrder(order)
+    }
     await order.save()
     await notifyCustomerOrderStatus(order, mappedStatus)
     await handleCodRestrictionOnStatusChange(order, mappedStatus)
@@ -883,40 +1102,148 @@ const trackOrder = asyncHandler(async (req, res) => {
   }
 })
 
+// MỚI: khóa đơn giản chống chạy chồng lệnh — nếu lần chạy trước (do số đơn
+// quá nhiều, mỗi đơn lại gọi API GHN thật) chưa xong mà đã tới giờ chạy lần
+// tiếp theo (mỗi 10 phút, xem server.js), sẽ BỎ QUA lần trigger mới thay vì
+// chạy chồng lên — tránh gọi trùng GHN cho cùng 1 đơn và tránh 2 lần chạy
+// cùng ghi đè trạng thái lộn xộn.
+let isSyncingGHN = false
+
 // MỚI: Tự động đồng bộ trạng thái cho TẤT CẢ đơn đang giao qua GHN, chạy định
 // kỳ nền (xem lịch chạy trong server.js). Chỉ xử lý đơn:
 //  - có ghnOrderCode (đã tạo vận đơn GHN thật)
 //  - chưa huỷ, chưa giao xong (không cần theo dõi nữa)
-// Lỗi ở 1 đơn không làm dừng các đơn còn lại (xử lý tuần tự, có delay nhẹ
-// giữa các lần gọi để không dồn dập request lên GHN cùng lúc).
+// Xử lý theo LÔ song song (SYNC_BATCH_SIZE đơn/lô, có delay nhẹ giữa các lô)
+// thay vì tuần tự từng đơn — giảm đáng kể tổng thời gian 1 chu kỳ khi số đơn
+// tăng lên, mà vẫn không dồn dập toàn bộ request lên GHN cùng lúc. Lỗi ở 1
+// đơn không làm dừng các đơn còn lại.
+const SYNC_BATCH_SIZE = 5
+const SYNC_BATCH_DELAY_MS = 500 // nghỉ giữa mỗi lô (không phải giữa mỗi đơn)
+
 async function autoSyncPendingGHNOrders() {
-  const pendingOrders = await Order.find({
-    ghnOrderCode: { $ne: '' },
-    isCancelled: { $ne: true },
-    isDelivered: { $ne: true },
-  })
-
-  if (pendingOrders.length === 0) return
-
-  console.log(`🔄 [Auto-sync GHN] Đang kiểm tra ${pendingOrders.length} đơn hàng...`)
-  let updatedCount = 0
-
-  for (const order of pendingOrders) {
-    try {
-      const result = await syncOrderStatusFromGHN(order)
-      if (result.statusChanged) {
-        updatedCount++
-        console.log(`✅ [Auto-sync GHN] Đơn #${order._id.toString().slice(-6)} → ${order.status}`)
-      }
-    } catch (e) {
-      console.error(`❌ [Auto-sync GHN] Lỗi đơn #${order._id.toString().slice(-6)}:`, e.message)
-    }
-    // Nghỉ 300ms giữa mỗi đơn — tránh gọi GHN quá dồn dập cùng lúc
-    await new Promise((resolve) => setTimeout(resolve, 300))
+  // ── Khóa chống chồng lệnh ─────────────────────────────────────────
+  if (isSyncingGHN) {
+    logger.info('[Auto-sync GHN] Lần chạy trước chưa xong — bỏ qua lần này.')
+    return
   }
+  isSyncingGHN = true
 
-  if (updatedCount > 0) {
-    console.log(`🔄 [Auto-sync GHN] Hoàn tất — đã cập nhật ${updatedCount}/${pendingOrders.length} đơn.`)
+  try {
+    // SỬA LỖI: điều kiện cũ chỉ kiểm tra 2 cờ boolean isCancelled/isDelivered —
+    // nếu vì lý do gì đó status đã là 'cancelled'/'delivered'/'returned' nhưng
+    // 2 cờ này chưa/không được cập nhật theo (dữ liệu cũ trước khi có field
+    // status, hoặc bị lệch do sửa tay), đơn đó sẽ bị đồng bộ MÃI MÃI vì điều
+    // kiện chưa từng nhìn vào status. Giờ kiểm tra CẢ status lẫn 2 cờ cũ —
+    // chỉ cần 1 trong 2 nguồn báo "đã kết thúc" là dừng, không chờ cả 2 khớp.
+    const pendingOrders = await Order.find({
+      ghnOrderCode: { $ne: '' },
+      isCancelled: { $ne: true },
+      isDelivered: { $ne: true },
+      $or: [
+        { status: { $exists: false } },
+        { status: { $nin: ['cancelled', 'delivered', 'returned'] } },
+      ],
+    })
+
+    if (pendingOrders.length === 0) return
+
+    logger.info(`[Auto-sync GHN] Đang kiểm tra ${pendingOrders.length} đơn hàng (lô ${SYNC_BATCH_SIZE} đơn/lần)...`)
+    let updatedCount = 0
+
+    // Chia thành các lô SYNC_BATCH_SIZE đơn, xử lý SONG SONG trong từng lô,
+    // nghỉ SYNC_BATCH_DELAY_MS giữa các lô để không dồn dập GHN cùng lúc.
+    for (let i = 0; i < pendingOrders.length; i += SYNC_BATCH_SIZE) {
+      const batch = pendingOrders.slice(i, i + SYNC_BATCH_SIZE)
+
+      const results = await Promise.allSettled(
+        batch.map((order) => syncOrderStatusFromGHN(order))
+      )
+
+      results.forEach((result, idx) => {
+        const order = batch[idx]
+        if (result.status === 'fulfilled') {
+          if (result.value?.statusChanged) {
+            updatedCount++
+            logger.info(`[Auto-sync GHN] Đơn #${order._id.toString().slice(-6)} → ${order.status}`)
+          }
+        } else {
+          logger.error(`[Auto-sync GHN] Lỗi đơn #${order._id.toString().slice(-6)}: ${result.reason?.message}`)
+        }
+      })
+
+      // Còn lô tiếp theo thì mới nghỉ (lô cuối không cần)
+      if (i + SYNC_BATCH_SIZE < pendingOrders.length) {
+        await new Promise((resolve) => setTimeout(resolve, SYNC_BATCH_DELAY_MS))
+      }
+    }
+
+    if (updatedCount > 0) {
+      logger.info(`[Auto-sync GHN] Hoàn tất — đã cập nhật ${updatedCount}/${pendingOrders.length} đơn.`)
+    }
+  } finally {
+    // Luôn mở khóa dù có lỗi giữa chừng — nếu không, 1 lần lỗi sẽ khóa cứng
+    // chức năng này mãi mãi cho tới khi restart server.
+    isSyncingGHN = false
+  }
+}
+
+// MỚI: bản GHTK của autoSyncPendingGHNOrders — cùng cấu trúc khóa chống
+// chồng lệnh + xử lý theo lô song song, chỉ khác nguồn dữ liệu (ghtkLabelCode
+// thay vì ghnOrderCode, gọi syncOrderStatusFromGHTK thay vì …FromGHN).
+let isSyncingGHTK = false
+
+async function autoSyncPendingGHTKOrders() {
+  if (isSyncingGHTK) {
+    logger.info('[Auto-sync GHTK] Lần chạy trước chưa xong — bỏ qua lần này.')
+    return
+  }
+  isSyncingGHTK = true
+
+  try {
+    const pendingOrders = await Order.find({
+      ghtkLabelCode: { $ne: '' },
+      isCancelled: { $ne: true },
+      isDelivered: { $ne: true },
+      $or: [
+        { status: { $exists: false } },
+        { status: { $nin: ['cancelled', 'delivered', 'returned'] } },
+      ],
+    })
+
+    if (pendingOrders.length === 0) return
+
+    logger.info(`[Auto-sync GHTK] Đang kiểm tra ${pendingOrders.length} đơn hàng (lô ${SYNC_BATCH_SIZE} đơn/lần)...`)
+    let updatedCount = 0
+
+    for (let i = 0; i < pendingOrders.length; i += SYNC_BATCH_SIZE) {
+      const batch = pendingOrders.slice(i, i + SYNC_BATCH_SIZE)
+
+      const results = await Promise.allSettled(
+        batch.map((order) => syncOrderStatusFromGHTK(order))
+      )
+
+      results.forEach((result, idx) => {
+        const order = batch[idx]
+        if (result.status === 'fulfilled') {
+          if (result.value?.statusChanged) {
+            updatedCount++
+            logger.info(`[Auto-sync GHTK] Đơn #${order._id.toString().slice(-6)} → ${order.status}`)
+          }
+        } else {
+          logger.error(`[Auto-sync GHTK] Lỗi đơn #${order._id.toString().slice(-6)}: ${result.reason?.message}`)
+        }
+      })
+
+      if (i + SYNC_BATCH_SIZE < pendingOrders.length) {
+        await new Promise((resolve) => setTimeout(resolve, SYNC_BATCH_DELAY_MS))
+      }
+    }
+
+    if (updatedCount > 0) {
+      logger.info(`[Auto-sync GHTK] Hoàn tất — đã cập nhật ${updatedCount}/${pendingOrders.length} đơn.`)
+    }
+  } finally {
+    isSyncingGHTK = false
   }
 }
 
@@ -950,6 +1277,61 @@ const cancelOrderRequest = asyncHandler(async (req, res) => {
   res.json(updatedOrder)
 })
 
+// ── MỚI: hàm dùng chung hoàn tồn kho cho 1 đơn hàng — dùng ở cả
+// approveCancelOrder (khách yêu cầu hủy được duyệt) VÀ updateOrderStatus
+// (admin/GHN đẩy trạng thái sang 'cancelled' hoặc 'returned'). Có cờ
+// order.stockRestored để đảm bảo CHỈ hoàn kho ĐÚNG 1 LẦN dù đơn có đi
+// qua nhiều đường dẫn khác nhau tới cùng kết cục "không giao được".
+const restoreStockForOrder = async (order) => {
+  if (order.stockRestored) {
+    console.log(`ℹ️ Đơn #${order._id} đã hoàn kho trước đó, bỏ qua.`)
+    return
+  }
+
+  try {
+    const Product = (await import('../models/productModel.js')).default
+    for (const item of order.orderItems) {
+      const product = await Product.findById(item.product)
+      if (!product) continue
+
+      if (product.colors && product.colors.length > 0 && item.color) {
+        const colorIndex = product.colors.findIndex((c) => c.name === item.color)
+        if (colorIndex !== -1) {
+          product.colors[colorIndex].countInStock += item.qty
+          await product.save()
+          console.log(`✅ Hoàn stock: ${product.name} [${item.color}] +${item.qty}`)
+        }
+      } else {
+        product.countInStock += item.qty
+        await product.save()
+      }
+    }
+    order.stockRestored = true
+  } catch (e) {
+    console.error('❌ Lỗi hoàn stock (non-fatal):', e.message)
+  }
+}
+
+// ── MỚI: hàm dùng chung hoàn usedCount + gỡ usedBy của voucher cho 1 đơn
+// — dùng ở approveCancelOrder, updateOrderStatus, syncOrderStatusFromGHN,
+// deleteOrder. Có cờ order.voucherReverted để chỉ hoàn ĐÚNG 1 LẦN.
+const revertVoucherForOrder = async (order) => {
+  if (!order.voucherCode || order.voucherReverted) return
+  try {
+    await Voucher.findOneAndUpdate(
+      { code: order.voucherCode, usedCount: { $gt: 0 } },
+      {
+        $inc: { usedCount: -1 },
+        $pull: { usedBy: { user: order.user } },
+      }
+    )
+    order.voucherReverted = true
+    console.log(`✅ Hoàn usedCount voucher: ${order.voucherCode}`)
+  } catch (e) {
+    console.error('❌ Lỗi hoàn usedCount voucher (non-fatal):', e.message)
+  }
+}
+
 // @desc    Admin approves order cancellation → hoàn lại tồn kho theo màu
 // @route   PUT /api/orders/:id/approve-cancel
 // @access  Private/Admin
@@ -969,41 +1351,11 @@ const approveCancelOrder = asyncHandler(async (req, res) => {
     }
   }
 
-  // ── MỚI: Hoàn lại tồn kho theo màu khi Admin chấp thuận hủy ────
-  try {
-    const Product = (await import('../models/productModel.js')).default
-    for (const item of order.orderItems) {
-      const product = await Product.findById(item.product)
-      if (!product) continue
-
-      if (product.colors && product.colors.length > 0 && item.color) {
-        const colorIndex = product.colors.findIndex((c) => c.name === item.color)
-        if (colorIndex !== -1) {
-          product.colors[colorIndex].countInStock += item.qty
-          await product.save()
-          console.log(`✅ Hoàn stock: ${product.name} [${item.color}] +${item.qty}`)
-        }
-      } else {
-        product.countInStock += item.qty
-        await product.save()
-      }
-    }
-  } catch (e) {
-    console.error('❌ Lỗi hoàn stock (non-fatal):', e.message)
-  }
+  // ── Hoàn lại tồn kho theo màu khi Admin chấp thuận hủy ────
+  await restoreStockForOrder(order)
 
   // ── Hoàn lại usedCount voucher khi Admin chấp thuận hủy ────────
-  if (order.voucherCode) {
-    try {
-      await Voucher.findOneAndUpdate(
-        { code: order.voucherCode, usedCount: { $gt: 0 } },
-        { $inc: { usedCount: -1 } }
-      )
-      console.log(`✅ Hoàn usedCount voucher (cancel): ${order.voucherCode}`)
-    } catch (e) {
-      console.error('❌ Lỗi hoàn usedCount voucher (non-fatal):', e.message)
-    }
-  }
+  await revertVoucherForOrder(order)
 
   order.isCancelled  = true
   order.cancelledAt  = Date.now()
@@ -1200,51 +1552,8 @@ const sepayWebhook = async (req, res) => {
 // @route   GET /api/orders/admin/analytics/revenue
 // @access  Private/Admin
 const getRevenueAnalytics = asyncHandler(async (req, res) => {
-  const { period = 'month', month, year, quarter, startDate, endDate } = req.query
-  const now = new Date()
-  const y = year ? Number(year) : now.getFullYear()
-
-  let start, end, prevStart, prevEnd, label, prevLabel
-
-  if (period === 'custom' && startDate && endDate) {
-    start = new Date(startDate); start.setHours(0, 0, 0, 0)
-    end = new Date(endDate); end.setHours(23, 59, 59, 999)
-    const durationMs = end.getTime() - start.getTime()
-    prevEnd = new Date(start.getTime() - 1)
-    prevStart = new Date(prevEnd.getTime() - durationMs)
-    label = `${startDate} → ${endDate}`
-    prevLabel = 'Kỳ liền trước'
-  } else if (period === 'year') {
-    start = new Date(y, 0, 1)
-    end = new Date(y, 11, 31, 23, 59, 59, 999)
-    prevStart = new Date(y - 1, 0, 1)
-    prevEnd = new Date(y - 1, 11, 31, 23, 59, 59, 999)
-    label = `Năm ${y}`
-    prevLabel = `Năm ${y - 1}`
-  } else if (period === 'quarter') {
-    const q = quarter ? Number(quarter) : Math.floor(now.getMonth() / 3) + 1
-    const startMonth = (q - 1) * 3
-    start = new Date(y, startMonth, 1)
-    end = new Date(y, startMonth + 3, 0, 23, 59, 59, 999)
-    const prevQ = q === 1 ? 4 : q - 1
-    const prevY = q === 1 ? y - 1 : y
-    const prevStartMonth = (prevQ - 1) * 3
-    prevStart = new Date(prevY, prevStartMonth, 1)
-    prevEnd = new Date(prevY, prevStartMonth + 3, 0, 23, 59, 59, 999)
-    label = `Quý ${q}/${y}`
-    prevLabel = `Quý ${prevQ}/${prevY}`
-  } else {
-    // 'month' (mặc định)
-    const m = month ? Number(month) - 1 : now.getMonth()
-    start = new Date(y, m, 1)
-    end = new Date(y, m + 1, 0, 23, 59, 59, 999)
-    const prevM = m === 0 ? 11 : m - 1
-    const prevY = m === 0 ? y - 1 : y
-    prevStart = new Date(prevY, prevM, 1)
-    prevEnd = new Date(prevY, prevM + 1, 0, 23, 59, 59, 999)
-    label = `Tháng ${m + 1}/${y}`
-    prevLabel = `Tháng ${prevM + 1}/${prevY}`
-  }
+  const { start, end, prevStart, prevEnd, label, prevLabel } = resolvePeriodRange(req.query)
+  const { period = 'month' } = req.query
 
   // "Thành công" = status delivered — dùng chung hằng số DELIVERED_MATCH
   const deliveredMatch = DELIVERED_MATCH
@@ -1446,17 +1755,8 @@ const deleteOrderByAdmin = asyncHandler(async (req, res) => {
     }
   }
 
-  if (order.voucherCode) {
-    try {
-      await Voucher.findOneAndUpdate(
-        { code: order.voucherCode, usedCount: { $gt: 0 } },
-        { $inc: { usedCount: -1 } }
-      )
-      console.log(`✅ Hoàn usedCount voucher (delete): ${order.voucherCode}`)
-    } catch (e) {
-      console.error('❌ Lỗi hoàn usedCount voucher khi xóa (non-fatal):', e.message)
-    }
-  }
+  // (order sẽ bị xóa ngay sau đây nên không cần order.save() cho cờ voucherReverted)
+  await revertVoucherForOrder(order)
 
   await Order.findByIdAndDelete(req.params.id)
   res.json({ message: 'Order deleted', orderId: req.params.id })
@@ -1473,6 +1773,7 @@ export {
   getOrders,
   trackOrder,
   autoSyncPendingGHNOrders,
+  autoSyncPendingGHTKOrders,
   cancelOrderRequest,
   approveCancelOrder,
   rejectCancelOrder,

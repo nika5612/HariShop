@@ -2,10 +2,10 @@ import React, { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import { Row, Col } from 'react-bootstrap'
-import axios from 'axios'
 import Message from '../components/Message'
 import Loader from '../components/Loader'
 import TermsModal from '../components/TermsModal'
+import VoucherModal from '../components/VoucherModal'
 
 import { createOrder } from '../actions/orderActions'
 import { getUserDetails } from '../actions/userActions'
@@ -20,6 +20,7 @@ import {
   savePaymentMethod,
   saveDeliveryProvider,
 } from '../actions/cartActions'
+import { validateVoucherCode } from '../actions/voucherActions'
 
 import { listProductDetails } from '../actions/productActions'
 import { getShippingQuotes } from '../actions/shippingActions'
@@ -91,10 +92,11 @@ const CheckoutScreen = ({ history, location }) => {
   const [showDeliveryOptions, setShowDeliveryOptions] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState('cod')
 
-  const [voucherInput, setVoucherInput] = useState('')
-  const [voucherApplied, setVoucherApplied] = useState(false) // flag đã áp thành công
-  const [voucherDiscount, setVoucherDiscount] = useState(0) // số tiền giảm
-  const [voucherError, setVoucherError] = useState('')
+  // MỚI: state cho popup chọn voucher kiểu Shopee (thay cho ô nhập tay đơn giản)
+  const [showVoucherModal, setShowVoucherModal] = useState(false)
+  const [selectedVoucher, setSelectedVoucher] = useState(null) // { code, name, type, discountAmount }
+  const [voucherNotice, setVoucherNotice] = useState('') // thông báo khi voucher tự động bị bỏ áp dụng
+  const voucherDiscount = Number(selectedVoucher?.discountAmount) || 0
 
   const [shopMessage, setShopMessage] = useState('')
   const [agreeTerms, setAgreeTerms] = useState(false)
@@ -255,37 +257,60 @@ const CheckoutScreen = ({ history, location }) => {
 
   const deliveryFee = Number(selectedQuote.fee || 0)
 
-  const discountAmount = Math.min(Number(voucherDiscount) || 0, Number(itemsPrice) || 0)
+  // MỚI: freeship giảm vào phí ship (giới hạn bởi deliveryFee), percent/fixed giảm vào tạm tính
+  const discountAmount =
+    selectedVoucher?.type === 'freeship'
+      ? Math.min(voucherDiscount, deliveryFee)
+      : Math.min(voucherDiscount, Number(itemsPrice) || 0)
 
   const totalPrice = itemsPrice + deliveryFee - discountAmount
 
-  const applyVoucher = async () => {
-    const code = voucherInput.trim().toUpperCase()
-    if (!code) {
-      setVoucherApplied(false)
-      setVoucherDiscount(0)
-      setVoucherError('Vui lòng nhập mã voucher')
+  // MỚI: nhận voucher được chọn/xác nhận từ popup VoucherModal
+  const handleVoucherConfirm = (voucher) => {
+    if (!voucher) {
+      setSelectedVoucher(null)
+      dispatch(saveVoucherCode(''))
+      dispatch(saveVoucherDiscount(0))
       return
     }
-
-    try {
-      const res = await axios.post('/api/vouchers/apply', {
-        code,
-        orderAmount: itemsPrice,
-      })
-
-      setVoucherApplied(true)
-      setVoucherDiscount(Number(res.data.discountAmount) || 0)
-      setVoucherError('')
-      dispatch(saveVoucherCode(code))
-      dispatch(saveVoucherDiscount(Number(res.data.discountAmount) || 0))
-    } catch (err) {
-      const msg = err?.response?.data?.message || 'Mã voucher không hợp lệ'
-      setVoucherApplied(false)
-      setVoucherDiscount(0)
-      setVoucherError(msg)
-    }
+    setSelectedVoucher(voucher)
+    setVoucherNotice('')
+    dispatch(saveVoucherCode(voucher.code))
+    dispatch(saveVoucherDiscount(Number(voucher.discountAmount) || 0))
   }
+
+  // MỚI (VIII): tự động kiểm tra lại điều kiện voucher mỗi khi giỏ hàng
+  // thay đổi (tạm tính hoặc phí ship đổi) — nếu voucher đang áp dụng
+  // không còn đủ điều kiện, tự động bỏ áp dụng + thông báo cho khách.
+  const voucherRecheckKey = `${selectedVoucher?.code || ''}:${itemsPrice}:${deliveryFee}`
+  const prevRecheckKey = useRef(voucherRecheckKey)
+  useEffect(() => {
+    if (!selectedVoucher?.code) return
+    if (prevRecheckKey.current === voucherRecheckKey) return
+    prevRecheckKey.current = voucherRecheckKey
+
+    dispatch(
+      validateVoucherCode({
+        code: selectedVoucher.code,
+        orderAmount: itemsPrice,
+        shippingFee: deliveryFee,
+      })
+    )
+      .then((result) => {
+        // Cập nhật lại discountAmount theo giỏ hàng mới (có thể tăng/giảm)
+        setSelectedVoucher((prev) =>
+          prev ? { ...prev, discountAmount: result.discountAmount } : prev
+        )
+        dispatch(saveVoucherDiscount(Number(result.discountAmount) || 0))
+      })
+      .catch((err) => {
+        setSelectedVoucher(null)
+        dispatch(saveVoucherCode(''))
+        dispatch(saveVoucherDiscount(0))
+        setVoucherNotice('Voucher không còn đủ điều kiện sử dụng.')
+      })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [voucherRecheckKey])
 
 
   const placeOrderHandler = () => {
@@ -330,7 +355,7 @@ const CheckoutScreen = ({ history, location }) => {
       voucherDiscount: discountAmount,
       totalPrice,
       shopMessage,
-      voucherCode: voucherApplied ? voucherInput.trim().toUpperCase() : '',
+      voucherCode: selectedVoucher?.code || '',
       // ── Lưu mã CK để SePay / admin đối soát ──
       transferContent,
     }))
@@ -509,38 +534,51 @@ const CheckoutScreen = ({ history, location }) => {
           {/* 3. VOUCHER */}
           <div style={sectionStyle}>
             <h5 style={{ color: '#33FFCC', fontWeight: '700', marginBottom: '16px' }}>
-              <i className='fas fa-ticket-alt me-2'></i>Mã giảm giá
+              <i className='fas fa-ticket-alt me-2'></i>Voucher của Shop
             </h5>
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <input type='text' value={voucherInput}
-                onChange={(e) => setVoucherInput(e.target.value)}
-                placeholder='Nhập mã voucher (VD: HARI10)'
-                style={{
-                  flex: 1, background: '#0f0f23',
-                  border: '1px solid rgba(51,255,204,0.4)',
-                  borderRadius: '8px', padding: '10px 14px',
-                  color: '#ffffff', fontSize: '14px', outline: 'none',
-                }}
-              />
-              <button onClick={applyVoucher} style={{
-                background: '#33FFCC', border: 'none', borderRadius: '8px',
-                padding: '10px 20px', color: '#0f0f23',
-                fontWeight: '700', fontSize: '14px', cursor: 'pointer', flexShrink: 0,
-              }}>
-                Áp dụng
-              </button>
-            </div>
-            {voucherError && (
-              <div style={{ color: '#ff6b6b', fontSize: '13px', marginTop: '8px' }}>{voucherError}</div>
-            )}
-            {voucherApplied && voucherDiscount > 0 && (
-              <div style={{ color: '#4cdb80', fontSize: '13px', marginTop: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <i className='fas fa-check-circle'></i>
-                Áp dụng thành công! Giảm {Number(voucherDiscount).toLocaleString('vi-VN')}đ
+
+            {voucherNotice && (
+              <div style={{ color: '#ff6b6b', fontSize: '13px', marginBottom: '10px' }}>
+                ⚠ {voucherNotice}
               </div>
             )}
 
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+              <div>
+                {selectedVoucher ? (
+                  <div style={{ color: '#4cdb80', fontSize: 14, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <i className='fas fa-check-circle'></i>
+                    {selectedVoucher.type === 'freeship'
+                      ? 'Miễn phí vận chuyển'
+                      : `Giảm ${Number(selectedVoucher.discountAmount).toLocaleString('vi-VN')}đ`}
+                    {selectedVoucher.name ? ` — ${selectedVoucher.name}` : ''}
+                  </div>
+                ) : (
+                  <div style={{ color: '#b8bcc8', fontSize: 14 }}>Chưa chọn voucher</div>
+                )}
+              </div>
+              <button
+                onClick={() => setShowVoucherModal(true)}
+                style={{
+                  background: 'transparent', border: '1px solid #33FFCC', borderRadius: 8,
+                  padding: '8px 18px', color: '#33FFCC', fontWeight: 700, fontSize: 13,
+                  cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap',
+                }}
+              >
+                {selectedVoucher ? 'Thay đổi' : 'Chọn hoặc nhập mã'}
+              </button>
+            </div>
           </div>
+
+          <VoucherModal
+            show={showVoucherModal}
+            onHide={() => setShowVoucherModal(false)}
+            orderAmount={itemsPrice}
+            shippingFee={deliveryFee}
+            selectedCode={selectedVoucher?.code}
+            onConfirm={handleVoucherConfirm}
+          />
+
 
           {/* 4. LỜI NHẮN */}
           <div style={sectionStyle}>

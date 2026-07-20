@@ -1,3 +1,5 @@
+import logger from '../utils/logger.js'
+
 const notFound = (req, res, next) => {
   const error = new Error(`Not Found - ${req.originalUrl}`)
   res.status(404)
@@ -12,13 +14,8 @@ const errorHandler = (err, req, res, next) => {
     err.toString() || 
     (err.error && err.error.message) || 
     'Internal Server Error';
-  
-  console.error('❌ Global Error:', {
-    message,
-    statusCode,
-    url: req.originalUrl,
-    stack: process.env.NODE_ENV === 'production' ? null : err.stack
-  });
+
+  logger.error(`[${req.method} ${req.originalUrl}] ${message}${err.stack ? '\n' + err.stack : ''}`)
   
   res.status(statusCode).json({
     success: false,
