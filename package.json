@@ -8,6 +8,7 @@
     "start": "concurrently \"npm run server\" \"npm run client\"",
     "server": "cross-env NODE_ENV=development nodemon backend/server.js",
     "client": "npm start --prefix frontend",
+    "build": "pnpm install --dir frontend && pnpm run build --dir frontend",
     "data:import": "node backend/seeder.js",
     "data:destroy": "node backend/seeder.js -d",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --config backend/jest.config.js"
