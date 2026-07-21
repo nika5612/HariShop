@@ -5,10 +5,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "concurrently \"npm run server\" \"npm run client\"",
+    "start": "concurrently \"pnpm run server\" \"pnpm run client\"",
     "server": "cross-env NODE_ENV=development nodemon backend/server.js",
-    "client": "npm start --prefix frontend",
-    "build": "pnpm install --dir frontend && pnpm run build --dir frontend",
+    "client": "pnpm --dir frontend start",
+    "build": "pnpm --dir frontend install && pnpm --dir frontend run build",
     "data:import": "node backend/seeder.js",
     "data:destroy": "node backend/seeder.js -d",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --config backend/jest.config.js"
