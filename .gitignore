@@ -20,6 +20,10 @@ node_modules/
 .env.test.local
 .env.production.local
 
+# Ngoại lệ: frontend/.env chỉ chứa SKIP_PREFLIGHT_CHECK=true (không phải bí
+# mật), cần commit để build CRA nhất quán trên mọi máy/host.
+!frontend/.env
+
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
