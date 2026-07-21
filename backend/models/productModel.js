@@ -72,6 +72,9 @@ const productSchema = mongoose.Schema(
     },
     name:        { type: String, required: true },
     image:       { type: String, required: true },
+    // MỚI: ảnh banner riêng cho carousel trang chủ (tỉ lệ ngang, VD 1600x600).
+    // Để trống thì carousel sẽ tự dùng lại `image` (ảnh sản phẩm) làm banner.
+    bannerImage: { type: String, default: '' },
     brand:       { type: String, required: true },
     category:    { type: String, required: true },
     description: { type: String, required: true },

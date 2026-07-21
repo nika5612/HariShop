@@ -112,14 +112,11 @@ const ProductListScreen = ({ history, match }) => {
           <Table striped bordered hover responsive className='table-sm'>
             <thead>
               <tr>
-                <th>ID</th>
                 <SortableHeader label='Tên' sortKey='name' sortConfig={sortConfig} onSort={handleSort} />
                 <SortableHeader label='Giá' sortKey='price' sortConfig={sortConfig} onSort={handleSort} />
-                <th>Trọng lượng</th>
                 <SortableHeader label='Danh Mục' sortKey='category' sortConfig={sortConfig} onSort={handleSort} />
                 <SortableHeader label='Hãng' sortKey='brand' sortConfig={sortConfig} onSort={handleSort} />
                 <th>Màu sắc</th>
-                <th>Thông số</th>
                 <SortableHeader label='Tồn kho' sortKey='countInStock' sortConfig={sortConfig} onSort={handleSort} />
                 <SortableHeader label='Đánh giá' sortKey='rating' sortConfig={sortConfig} onSort={handleSort} />
                 <SortableHeader label='Ngày tạo' sortKey='createdAt' sortConfig={sortConfig} onSort={handleSort} />
@@ -131,37 +128,52 @@ const ProductListScreen = ({ history, match }) => {
             <tbody>
               {products.map((product) => (
                 <tr key={product._id}>
-                  <td>{product._id}</td>
-                  <td>{product.name}</td>
+                  <td title={product._id}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      {product.image && (
+                        <img
+                          src={product.image}
+                          alt={product.name}
+                          style={{ width: 36, height: 36, objectFit: 'cover', borderRadius: 6, flexShrink: 0 }}
+                        />
+                      )}
+                      <span
+                        title={product.name}
+                        style={{
+                          maxWidth: 220,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {product.name}
+                      </span>
+                    </div>
+                  </td>
                   <td>{product.price.toLocaleString('vi-VN')}đ</td>
-                  <td>{product.weight ? `${product.weight}g` : 'N/A'}</td>
                   <td>{product.category}</td>
                   <td>{product.brand}</td>
                   <td>
-                    {Array.isArray(product.colors) && product.colors.length > 0
-                      ? product.colors.map((c) => c.name).join(', ')
-                      : 'N/A'}
-                  </td>
-
-                  <td style={{ fontSize: '12px', whiteSpace: 'nowrap' }}>
-                    {(() => {
-                      const s = product.specs
-                      const hasSpecs = s && Object.values(s).some((v) => v)
-                      if (!hasSpecs) {
-                        return <span className='text-muted'>Chưa nhập</span>
-                      }
-                      const parts = []
-                      if (s.ram) parts.push(`RAM ${s.ram}`)
-                      if (s.storage) parts.push(s.storage)
-                      if (s.battery) parts.push(`${s.battery}mAh`)
-                      return parts.length > 0 ? (
-                        parts.join(' • ')
-                      ) : (
-                        <span className='text-success'>
-                          <i className='fas fa-check-circle'></i> Đã có
-                        </span>
-                      )
-                    })()}
+                    {Array.isArray(product.colors) && product.colors.length > 0 ? (
+                      <div style={{ display: 'flex', gap: '4px' }}>
+                        {product.colors.map((c) => (
+                          <span
+                            key={c.name}
+                            title={c.name}
+                            style={{
+                              width: 16,
+                              height: 16,
+                              borderRadius: '50%',
+                              background: c.hexCode || '#888888',
+                              border: '1px solid rgba(0,0,0,0.2)',
+                              display: 'inline-block',
+                            }}
+                          />
+                        ))}
+                      </div>
+                    ) : (
+                      'N/A'
+                    )}
                   </td>
 
                   <td>{Number.isFinite(product.countInStock) ? product.countInStock : 0}</td>

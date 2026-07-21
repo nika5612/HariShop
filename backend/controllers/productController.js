@@ -4,6 +4,22 @@ import Order from '../models/orderModel.js'
 import { callAI } from '../utils/aiProvider.js'
 import { attachFlashSale, attachFlashSaleToList, normalizeFlashSale } from '../utils/flashSale.js'
 
+// MỚI: chuẩn hóa đường dẫn ảnh dùng chung cho image & bannerImage
+// (tách từ logic ternary lặp lại trong createProduct/updateProduct).
+// - Link Cloudinary/URL đầy đủ (http(s)://) → giữ nguyên
+// - '/uploads/...' → giữ nguyên
+// - 'uploads/...' → thêm '/' phía trước
+// - bắt đầu bằng '/' khác → giữ nguyên
+// - còn lại (chỉ có fileName) → ghép thành '/uploads/<fileName>'
+const normalizeImagePath = (value, fallback = '') => {
+  if (typeof value !== 'string' || !value) return fallback
+  if (/^https?:\/\//i.test(value)) return value
+  if (value.startsWith('/uploads/')) return value
+  if (value.startsWith('uploads/')) return `/${value}`
+  if (value.startsWith('/')) return value
+  return `/uploads/${value}`
+}
+
 // @desc    Fetch all products (search + filter + sort + paginate)
 // @route   GET /api/products
 // @access  Public
@@ -422,7 +438,7 @@ const normalizeSpecs = (specs) => {
 // ── MỚI: createProduct nhận thêm colors ────────────────────────
 const createProduct = asyncHandler(async (req, res) => {
   const {
-    name, price, weight, image, brand,
+    name, price, weight, image, bannerImage, brand,
     category, description,
     colors,      // ← MỚI: mảng màu từ frontend
     specs,       // ← MỚI: thông số kỹ thuật
@@ -439,18 +455,10 @@ const createProduct = asyncHandler(async (req, res) => {
     // Nếu gửi lại là 'uploads/...' hoặc fileName thì tự thêm '/uploads/'.
     // MỚI (B10): nếu là link Cloudinary/URL đầy đủ (http:// hoặc https://) thì
     // giữ nguyên, KHÔNG được ghép thêm '/uploads/' vào trước.
-    image:
-      typeof image === 'string'
-        ? /^https?:\/\//i.test(image)
-          ? image
-          : image.startsWith('/uploads/')
-            ? image
-            : image.startsWith('uploads/')
-              ? `/${image}`
-              : image.startsWith('/')
-                ? image
-                : `/uploads/${image}`
-        : '/images/sample.jpg',
+    image:       normalizeImagePath(image, '/images/sample.jpg'),
+    // MỚI: ảnh banner riêng cho carousel — không bắt buộc, để trống nếu Admin
+    // không upload (carousel sẽ tự dùng lại `image` làm fallback).
+    bannerImage: normalizeImagePath(bannerImage, ''),
     brand:       brand       || 'Sample brand',
     category:    category    || 'Sample category',
     numReviews:  0,
@@ -473,7 +481,7 @@ const createProduct = asyncHandler(async (req, res) => {
 const updateProduct = asyncHandler(async (req, res) => {
   const {
     name, price, weight, description,
-    image, brand, category,
+    image, bannerImage, brand, category,
     colors,      // ← MỚI
     specs,       // ← MỚI: thông số kỹ thuật
     flashSale,   // ← MỚI (B8): flash sale
@@ -490,18 +498,9 @@ const updateProduct = asyncHandler(async (req, res) => {
     // Chuẩn hóa lại image cho update
     // MỚI (B10): nếu là link Cloudinary/URL đầy đủ (http:// hoặc https://) thì
     // giữ nguyên, KHÔNG được ghép thêm '/uploads/' vào trước.
-    product.image =
-      typeof image === 'string'
-        ? /^https?:\/\//i.test(image)
-          ? image
-          : image.startsWith('/uploads/')
-            ? image
-            : image.startsWith('uploads/')
-              ? `/${image}`
-              : image.startsWith('/')
-                ? image
-                : `/uploads/${image}`
-        : product.image
+    product.image = normalizeImagePath(image, product.image)
+    // MỚI: cập nhật ảnh banner riêng cho carousel — không bắt buộc.
+    product.bannerImage = normalizeImagePath(bannerImage, '')
     product.brand       = brand
     product.category    = category
 

@@ -19,6 +19,9 @@ const ProductAddScreen = ({ history }) => {
   const [name, setName] = useState('')
   const [price, setPrice] = useState(0)
   const [image, setImage] = useState('')
+  // MỚI: ảnh banner riêng cho carousel trang chủ (tỉ lệ ngang, không bắt buộc)
+  const [bannerImage, setBannerImage] = useState('')
+  const [bannerUploading, setBannerUploading] = useState(false)
   const [brand, setBrand] = useState('')
   const [category, setCategory] = useState('')
   const [weight, setWeight] = useState(0)
@@ -185,6 +188,43 @@ const ProductAddScreen = ({ history }) => {
     )
   }
 
+  // MỚI: upload ảnh banner riêng cho carousel trang chủ (chọn file máy)
+  const uploadBannerHandler = async (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    const formData = new FormData()
+    formData.append('image', file)
+    setBannerUploading(true)
+    try {
+      const config = { headers: { 'Content-Type': 'multipart/form-data' } }
+      const { data } = await axios.post('/api/upload', formData, config)
+      setBannerImage(data)
+    } catch (error) {
+      console.error(error)
+      alert('Tải ảnh banner thất bại.')
+    } finally {
+      setBannerUploading(false)
+    }
+  }
+
+  // MỚI: Tải ảnh banner từ link có sẵn trên mạng lên Cloudinary
+  const uploadBannerFromUrlHandler = async () => {
+    if (!bannerImage || !/^https?:\/\//i.test(bannerImage)) {
+      alert('Vui lòng dán một link ảnh hợp lệ (bắt đầu bằng http:// hoặc https://) vào ô Ảnh banner trước.')
+      return
+    }
+    setBannerUploading(true)
+    try {
+      const { data } = await axios.post('/api/upload/by-url', { imageUrl: bannerImage })
+      setBannerImage(data)
+    } catch (error) {
+      console.error(error)
+      alert(error.response?.data?.message || 'Không tải được ảnh từ link này.')
+    } finally {
+      setBannerUploading(false)
+    }
+  }
+
   const submitHandler = (e) => {
     e.preventDefault()
     // ── SỬA BUG: KHÔNG còn bắt buộc phải có màu ──
@@ -193,6 +233,7 @@ const ProductAddScreen = ({ history }) => {
         name,
         price,
         image,
+        bannerImage,
         brand,
         category,
         weight,
@@ -270,6 +311,52 @@ const ProductAddScreen = ({ history }) => {
               onChange={uploadFileHandler}
             />
             {uploading && <Loader />}
+          </Form.Group>
+
+          {/* MỚI: ảnh banner riêng cho carousel trang chủ — không bắt buộc.
+              Nên dùng ảnh tỉ lệ ngang (khuyến nghị ~1600x600) để không bị
+              phóng to/vỡ nét khi hiển thị full-width trên carousel. Để
+              trống thì carousel sẽ tự dùng lại ảnh sản phẩm ở trên. */}
+          <Form.Group controlId='bannerImage'>
+            <Form.Label>
+              Ảnh banner cho Carousel trang chủ{' '}
+              <small style={{ color: '#94a3b8' }}>
+                (không bắt buộc — không cần đúng tỉ lệ, hệ thống sẽ tự động cắt vừa khung khi hiển thị.
+                Ưu tiên ảnh có độ phân giải cao (tối thiểu ~1200px chiều rộng) để không bị vỡ nét.
+                Nếu để trống sẽ tự dùng ảnh sản phẩm ở trên)
+              </small>
+            </Form.Label>
+            <Form.Control
+              type='text'
+              placeholder='Enter banner image url (optional)'
+              value={bannerImage}
+              onChange={(e) => setBannerImage(e.target.value)}
+              style={inputStyle}
+            />
+            <Button
+              type='button'
+              variant='outline-info'
+              size='sm'
+              onClick={uploadBannerFromUrlHandler}
+              disabled={bannerUploading}
+              style={{ marginTop: '8px', marginBottom: '8px' }}
+            >
+              Tải Ảnh Từ Link Lên Cloudinary
+            </Button>
+            <Form.File
+              id='banner-image-file'
+              label='Choose File'
+              custom
+              onChange={uploadBannerHandler}
+            />
+            {bannerUploading && <Loader />}
+            {bannerImage && (
+              <img
+                src={bannerImage}
+                alt='Banner preview'
+                style={{ marginTop: 10, maxWidth: '100%', maxHeight: 150, borderRadius: 8 }}
+              />
+            )}
           </Form.Group>
 
           <Form.Group controlId='brand'>

@@ -61,3 +61,29 @@ Error: AI đang gặp sự cố, vui lòng thử lại sau.
 [2026-07-20 22:19:34] INFO: [Auto-sync GHTK] Đang kiểm tra 8 đơn hàng (lô 5 đơn/lần)...
 [2026-07-20 22:29:32] INFO: Server running in development mode on port 5000
 [2026-07-20 22:35:22] INFO: Server running in development mode on port 5000
+[2026-07-20 23:08:12] INFO: Server running in development mode on port 5000
+[2026-07-20 23:17:59] INFO: Server running in development mode on port 5000
+[2026-07-21 09:05:40] INFO: Server running in development mode on port 5000
+[2026-07-21 09:09:13] ERROR: [POST /api/upload] Images only!
+Error: Images only!
+    at checkFileType (file:///E:/HariShop_mern/backend/routes/uploadRoutes.js:31:8)
+    at fileFilter (file:///E:/HariShop_mern/backend/routes/uploadRoutes.js:39:5)
+    at wrappedFileFilter (E:\HariShop_mern\node_modules\.pnpm\multer@1.4.4\node_modules\multer\index.js:44:7)
+    at Busboy.<anonymous> (E:\HariShop_mern\node_modules\.pnpm\multer@1.4.4\node_modules\multer\lib\make-middleware.js:115:7)
+    at Busboy.emit (node:events:509:28)
+    at Busboy.emit (E:\HariShop_mern\node_modules\.pnpm\busboy@0.2.14\node_modules\busboy\lib\main.js:38:33)
+    at PartStream.<anonymous> (E:\HariShop_mern\node_modules\.pnpm\busboy@0.2.14\node_modules\busboy\lib\types\multipart.js:213:13)
+    at PartStream.emit (node:events:509:28)
+    at HeaderParser.<anonymous> (E:\HariShop_mern\node_modules\.pnpm\dicer@0.2.5\node_modules\dicer\lib\Dicer.js:51:16)
+    at HeaderParser.emit (node:events:509:28)
+    at HeaderParser._finish (E:\HariShop_mern\node_modules\.pnpm\dicer@0.2.5\node_modules\dicer\lib\HeaderParser.js:68:8)
+    at SBMH.<anonymous> (E:\HariShop_mern\node_modules\.pnpm\dicer@0.2.5\node_modules\dicer\lib\HeaderParser.js:40:12)
+    at SBMH.emit (node:events:509:28)
+    at SBMH._sbmh_feed (E:\HariShop_mern\node_modules\.pnpm\streamsearch@0.1.2\node_modules\streamsearch\lib\sbmh.js:159:14)
+    at SBMH.push (E:\HariShop_mern\node_modules\.pnpm\streamsearch@0.1.2\node_modules\streamsearch\lib\sbmh.js:56:14)
+    at HeaderParser.push (E:\HariShop_mern\node_modules\.pnpm\dicer@0.2.5\node_modules\dicer\lib\HeaderParser.js:46:19)
+[2026-07-21 09:15:10] INFO: Server running in development mode on port 5000
+[2026-07-21 09:20:50] INFO: Server running in development mode on port 5000
+[2026-07-21 09:24:47] INFO: Server running in development mode on port 5000
+[2026-07-21 09:24:53] INFO: Server running in development mode on port 5000
+[2026-07-21 09:41:37] INFO: Server running in development mode on port 5000
