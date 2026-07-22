@@ -1,4 +1,5 @@
 import asyncHandler from 'express-async-handler'
+import crypto from 'crypto'
 import mongoose from 'mongoose'
 import Order from '../models/orderModel.js'
 import Product from '../models/productModel.js'
@@ -1136,7 +1137,7 @@ async function autoSyncPendingGHNOrders() {
     // kiện chưa từng nhìn vào status. Giờ kiểm tra CẢ status lẫn 2 cờ cũ —
     // chỉ cần 1 trong 2 nguồn báo "đã kết thúc" là dừng, không chờ cả 2 khớp.
     const pendingOrders = await Order.find({
-      ghnOrderCode: { $exists: true, $nin: [null, ''] },
+      ghnOrderCode: { $ne: '' },
       isCancelled: { $ne: true },
       isDelivered: { $ne: true },
       $or: [
@@ -1201,7 +1202,7 @@ async function autoSyncPendingGHTKOrders() {
 
   try {
     const pendingOrders = await Order.find({
-      ghtkLabelCode: { $exists: true, $nin: [null, ''] },
+      ghtkLabelCode: { $ne: '' },
       isCancelled: { $ne: true },
       isDelivered: { $ne: true },
       $or: [
@@ -1508,8 +1509,56 @@ const completeRefund = asyncHandler(async (req, res) => {
   res.json(updatedOrder)
 })
 
+// MỚI: xác thực webhook SePay bằng HMAC-SHA256, đúng theo tài liệu chính
+// thức của SePay (developer.sepay.vn/en/sepay-webhooks/xac-thuc):
+//   - Header 'X-SePay-Signature': dạng 'sha256={hex_hash}'
+//   - Header 'X-SePay-Timestamp': Unix giây lúc SePay ký
+//   - Chuỗi được ký: `${timestamp}.${raw_body}` (dùng byte thô, KHÔNG phải
+//     req.body đã parse rồi JSON.stringify lại — 2 cái có thể lệch nhau do
+//     thứ tự key/khoảng trắng khác bản gốc, khiến chữ ký luôn sai)
+// Đồng thời chống replay: từ chối nếu timestamp lệch giờ server quá 5 phút.
+function verifySepaySignature(req) {
+  const secret = (process.env.SEPAY_SECRET || '').trim()
+  if (!secret) {
+    // Chưa cấu hình SEPAY_SECRET trên server — coi như CHƯA bật xác thực,
+    // cho qua nhưng cảnh báo rõ trong log để không bị quên.
+    logger.warn('[SePay Webhook] SEPAY_SECRET chưa được cấu hình — đang chạy KHÔNG xác thực chữ ký. Chỉ chấp nhận khi test nội bộ, KHÔNG dùng cho production.')
+    return { ok: true, skipped: true }
+  }
+
+  const signatureHeader = req.headers['x-sepay-signature'] || ''
+  const timestampHeader = req.headers['x-sepay-timestamp'] || ''
+
+  if (!signatureHeader || !timestampHeader) {
+    return { ok: false, reason: 'Thiếu header X-SePay-Signature hoặc X-SePay-Timestamp' }
+  }
+
+  const timestamp = Number(timestampHeader)
+  if (!Number.isFinite(timestamp) || Math.abs(Date.now() / 1000 - timestamp) > 300) {
+    return { ok: false, reason: 'Timestamp không hợp lệ hoặc đã hết hạn (lệch quá 5 phút)' }
+  }
+
+  const rawBody = req.rawBody ? req.rawBody.toString('utf8') : ''
+  const expected = 'sha256=' + crypto
+    .createHmac('sha256', secret)
+    .update(`${timestamp}.${rawBody}`)
+    .digest('hex')
+
+  const sigBuf = Buffer.from(String(signatureHeader))
+  const expBuf = Buffer.from(expected)
+  const valid = sigBuf.length === expBuf.length && crypto.timingSafeEqual(sigBuf, expBuf)
+
+  return valid ? { ok: true, skipped: false } : { ok: false, reason: 'Chữ ký không khớp' }
+}
+
 const sepayWebhook = async (req, res) => {
   try {
+    const verification = verifySepaySignature(req)
+    if (!verification.ok) {
+      logger.warn(`[SePay Webhook] Từ chối — ${verification.reason}`)
+      return res.status(401).json({ success: false, message: 'Invalid signature' })
+    }
+
     const data = req.body
     console.log('[SePay Webhook] Nhận dữ liệu:', JSON.stringify(data, null, 2))
 

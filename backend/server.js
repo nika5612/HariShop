@@ -20,7 +20,9 @@ import productRoutes from './routes/productRoutes.js'
 import userRoutes from './routes/userRoutes.js'
 import orderRoutes from './routes/orderRoutes.js'
 import orderAdminRoutes from './routes/orderAdminRoutes.js'
-import sepayWebhookRoutes from './routes/sepayWebhookRoutes.js'
+// (Đã gỡ import sepayWebhookRoutes — route đó dùng sai định dạng payload và
+// sai chuẩn chữ ký so với SePay thật. Xác thực HMAC nay được làm đúng ngay
+// trong route /api/orders/sepay-webhook, xem orderController.js.)
 import voucherRoutes from './routes/voucherRoutes.js'
 
 import uploadRoutes from './routes/uploadRoutes.js'
@@ -184,6 +186,15 @@ configureCloudinary()
 
 const app = express()
 
+// MỚI: Render (và hầu hết PaaS) đặt app sau 1 lớp reverse proxy — proxy tự
+// xử lý HTTPS ở biên rồi forward request vào app dưới dạng HTTP nội bộ. Nếu
+// không khai báo trust proxy, Express sẽ luôn nghĩ req.protocol là 'http',
+// làm sai URL callback mà Passport Google OAuth tự build (gây lệch với
+// Authorized redirect URI đã đăng ký trên Google Cloud Console) và khiến
+// cookie 'secure' không hoạt động đúng. '1' nghĩa là tin đúng 1 lớp proxy
+// phía trước (đúng với hạ tầng của Render).
+app.set('trust proxy', 1)
+
 // MỚI: helmet — thêm các HTTP security header cơ bản (chống clickjacking
 // qua X-Frame-Options, chặn MIME-sniffing qua X-Content-Type-Options, ẩn
 // header X-Powered-By tiết lộ đang dùng Express, v.v).
@@ -195,7 +206,17 @@ const app = express()
 app.use(helmet({ contentSecurityPolicy: false }))
 
 // Middleware
-app.use(express.json())
+// MỚI: lưu lại raw bytes của body (req.rawBody) song song với việc parse
+// JSON như bình thường. Cần thiết riêng cho xác thực chữ ký HMAC-SHA256 của
+// SePay — SePay ký trên byte thô của body; nếu chỉ dùng req.body (đã parse)
+// rồi JSON.stringify lại, chữ ký sẽ lệch (thứ tự key, khoảng trắng có thể
+// khác với bản gốc). Không ảnh hưởng các route khác — chúng vẫn dùng
+// req.body như cũ, chỉ riêng route webhook SePay mới cần req.rawBody.
+app.use(express.json({
+  verify: (req, res, buf) => {
+    req.rawBody = buf
+  },
+}))
 app.use(passport.initialize()) // B11: Google OAuth (stateless, không dùng session)
 
 if (process.env.NODE_ENV === 'development') {
@@ -215,9 +236,6 @@ app.use('/api/shipping', shippingRoutes)
 app.use('/api/settings', settingsRoutes)
 app.use('/api/notifications', notificationRoutes)
 app.use('/api/chat', chatRoutes)
-
-// ✅ sePay webhook (no auth)
-app.use('/api/payments', sepayWebhookRoutes)
 
 
 // HEALTH CHECK

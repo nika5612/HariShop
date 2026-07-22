@@ -50,6 +50,87 @@ const buildVietQRUrl = (amount, content) =>
   `?amount=${amount}&addInfo=${encodeURIComponent(content)}&accountName=HARISHOP`
 // ─────────────────────────────────────────────────────────────────────────────
 
+// MỚI: đếm ngược tới thời điểm đơn tự động bị hủy (24h kể từ lúc đặt) nếu
+// vẫn chưa thanh toán — dùng chung cho cả badge gọn (thanh trạng thái) và
+// box chi tiết (khu vực QR) bên dưới.
+const AUTO_CANCEL_HOURS = 24
+
+const useAutoCancelCountdown = (createdAt) => {
+  const deadline = new Date(createdAt).getTime() + AUTO_CANCEL_HOURS * 60 * 60 * 1000
+  const [remainingMs, setRemainingMs] = useState(() => deadline - Date.now())
+
+  useEffect(() => {
+    const tick = setInterval(() => {
+      setRemainingMs(deadline - Date.now())
+    }, 1000)
+    return () => clearInterval(tick)
+  }, [deadline])
+
+  return remainingMs
+}
+
+const formatCountdown = (remainingMs) => {
+  const totalSeconds = Math.max(0, Math.floor(remainingMs / 1000))
+  const hours = Math.floor(totalSeconds / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
+  const pad = (n) => String(n).padStart(2, '0')
+  return hours > 0 ? `${pad(hours)}:${pad(minutes)}:${pad(seconds)}` : `${pad(minutes)}:${pad(seconds)}`
+}
+
+// Badge gọn — đặt cạnh các StatusBadge khác trên thanh trạng thái đầu trang.
+const AutoCancelStatusBadge = ({ createdAt }) => {
+  const remainingMs = useAutoCancelCountdown(createdAt)
+  const isUrgent = remainingMs < 60 * 60 * 1000
+  const color = remainingMs <= 0 ? '#e53935' : isUrgent ? '#e53935' : '#ffd166'
+
+  return (
+    <StatusBadge color={color}>
+      <i className='fas fa-hourglass-half'></i>
+      {remainingMs <= 0 ? 'Sắp tự hủy do quá hạn' : `Tự hủy sau ${formatCountdown(remainingMs)}`}
+    </StatusBadge>
+  )
+}
+
+// Box chi tiết — đặt trong khu vực QR thanh toán.
+const AutoCancelCountdown = ({ createdAt }) => {
+  const remainingMs = useAutoCancelCountdown(createdAt)
+
+  if (remainingMs <= 0) {
+    return (
+      <div style={{
+        marginTop: '16px', background: 'rgba(230,57,70,0.12)',
+        border: '1px solid #e53935', borderRadius: '10px',
+        padding: '12px 16px', textAlign: 'center', color: '#e53935', fontSize: '13px',
+      }}>
+        <i className='fas fa-triangle-exclamation me-1'></i>
+        Đơn đã quá hạn thanh toán, hệ thống sẽ sớm tự động hủy đơn này.
+      </div>
+    )
+  }
+
+  const isUrgent = remainingMs < 60 * 60 * 1000
+  const color = isUrgent ? '#e53935' : '#f0a500'
+
+  return (
+    <div style={{
+      marginTop: '16px',
+      background: isUrgent ? 'rgba(230,57,70,0.12)' : 'rgba(240,165,0,0.1)',
+      border: `1px solid ${color}`, borderRadius: '10px',
+      padding: '12px 16px', textAlign: 'center',
+    }}>
+      <div style={{ color, fontSize: '13px', marginBottom: '4px' }}>
+        <i className='fas fa-hourglass-half me-1'></i>
+        Đơn sẽ tự động hủy nếu chưa thanh toán trong
+      </div>
+      <div style={{ fontSize: '24px', fontWeight: 800, letterSpacing: '2px', color, fontVariantNumeric: 'tabular-nums' }}>
+        {formatCountdown(remainingMs)}
+      </div>
+    </div>
+  )
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 const PAYMENT_LABELS = {
   cod: 'Thanh toán khi nhận hàng (COD)',
   online: 'Chuyển khoản / QR Code',
@@ -542,6 +623,9 @@ const SepayQRSection = ({ order }) => {
         </p>
       </div>
 
+      {/* MỚI: đếm ngược tới lúc đơn tự động bị hủy nếu chưa thanh toán */}
+      <AutoCancelCountdown createdAt={order.createdAt} />
+
       {/* Tự kiểm tra mỗi 10 giây */}
       <div style={{
         marginTop: '12px', display: 'flex', alignItems: 'center',
@@ -769,6 +853,10 @@ const OrderScreen = ({ match, history }) => {
           <StatusBadge color='#4cdb80'><i className='fas fa-check-circle'></i> Đã thanh toán</StatusBadge>
         ) : (
           <StatusBadge color='#ff6b6b'><i className='fas fa-clock'></i> Chưa thanh toán</StatusBadge>
+        )}
+        {/* MỚI: chỉ hiện đếm ngược khi thanh toán online, chưa trả tiền, và đơn chưa bị hủy */}
+        {order.paymentMethod === 'online' && !order.isPaid && !order.isCancelled && (
+          <AutoCancelStatusBadge createdAt={order.createdAt} />
         )}
         {order.cancelRequest?.requested && !order.isCancelled && (
           <StatusBadge color='#ffd166'><i className='fas fa-hourglass-half'></i> Đang chờ duyệt hủy</StatusBadge>

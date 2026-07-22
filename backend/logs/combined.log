@@ -87,3 +87,16 @@ Error: Images only!
 [2026-07-21 09:24:47] INFO: Server running in development mode on port 5000
 [2026-07-21 09:24:53] INFO: Server running in development mode on port 5000
 [2026-07-21 09:41:37] INFO: Server running in development mode on port 5000
+[2026-07-21 18:18:57] INFO: Server running in development mode on port 5000
+[2026-07-21 18:42:10] INFO: Server running in development mode on port 5000
+[2026-07-21 23:43:02] INFO: Server running in development mode on port 5000
+[2026-07-22 10:08:43] INFO: Server running in development mode on port 5000
+[2026-07-22 10:09:13] INFO: [Auto-sync GHTK] Đang kiểm tra 8 đơn hàng (lô 5 đơn/lần)...
+[2026-07-22 10:09:29] INFO: Server running in development mode on port 5000
+[2026-07-22 10:09:42] INFO: Server running in development mode on port 5000
+[2026-07-22 10:09:55] INFO: Server running in development mode on port 5000
+[2026-07-22 10:10:02] INFO: Server running in development mode on port 5000
+[2026-07-22 10:10:32] INFO: [Auto-sync GHTK] Đang kiểm tra 8 đơn hàng (lô 5 đơn/lần)...
+[2026-07-22 10:12:07] WARN: [SePay Webhook] SEPAY_SECRET chưa được cấu hình — đang chạy KHÔNG xác thực chữ ký. Chỉ chấp nhận khi test nội bộ, KHÔNG dùng cho production.
+[2026-07-22 10:12:36] INFO: Server running in development mode on port 5000
+[2026-07-22 10:13:06] INFO: [Auto-sync GHTK] Đang kiểm tra 8 đơn hàng (lô 5 đơn/lần)...
