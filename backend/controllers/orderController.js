@@ -1137,7 +1137,10 @@ async function autoSyncPendingGHNOrders() {
     // kiện chưa từng nhìn vào status. Giờ kiểm tra CẢ status lẫn 2 cờ cũ —
     // chỉ cần 1 trong 2 nguồn báo "đã kết thúc" là dừng, không chờ cả 2 khớp.
     const pendingOrders = await Order.find({
-      ghnOrderCode: { $ne: '' },
+      // MỚI: thêm $exists: true — $ne: '' một mình sẽ khớp NHẦM cả các đơn
+      // hàng cũ (tạo trước khi field ghnOrderCode tồn tại trong schema),
+      // vì với MongoDB, field không tồn tại cũng được coi là "khác rỗng".
+      ghnOrderCode: { $exists: true, $ne: '' },
       isCancelled: { $ne: true },
       isDelivered: { $ne: true },
       $or: [
@@ -1202,7 +1205,8 @@ async function autoSyncPendingGHTKOrders() {
 
   try {
     const pendingOrders = await Order.find({
-      ghtkLabelCode: { $ne: '' },
+      // MỚI: thêm $exists: true — lý do xem chú thích ở autoSyncPendingGHNOrders.
+      ghtkLabelCode: { $exists: true, $ne: '' },
       isCancelled: { $ne: true },
       isDelivered: { $ne: true },
       $or: [
@@ -1330,6 +1334,69 @@ const revertVoucherForOrder = async (order) => {
     console.log(`✅ Hoàn usedCount voucher: ${order.voucherCode}`)
   } catch (e) {
     console.error('❌ Lỗi hoàn usedCount voucher (non-fatal):', e.message)
+  }
+}
+
+// ── MỚI: tự động hủy đơn thanh toán online (SePay QR) nếu quá 24 giờ vẫn
+// chưa thanh toán. Không áp dụng cho đơn COD (khách trả tiền lúc nhận hàng,
+// không có khái niệm "hết hạn thanh toán trước"). Dùng lại đúng 2 helper
+// hoàn kho/hoàn voucher đã có (restoreStockForOrder, revertVoucherForOrder)
+// để không viết trùng logic — đơn tự hủy được xử lý giống hệt đơn admin
+// duyệt hủy, chỉ khác người thực hiện (hệ thống, không phải admin).
+let isCancellingUnpaid = false
+
+const AUTO_CANCEL_UNPAID_HOURS = 24
+
+async function autoCancelUnpaidOnlineOrders() {
+  if (isCancellingUnpaid) {
+    logger.info('[Auto-cancel] Lần chạy trước chưa xong — bỏ qua lần này.')
+    return
+  }
+  isCancellingUnpaid = true
+
+  try {
+    const deadline = new Date(Date.now() - AUTO_CANCEL_UNPAID_HOURS * 60 * 60 * 1000)
+
+    const overdueOrders = await Order.find({
+      paymentMethod: 'online',
+      isPaid: false,
+      isCancelled: { $ne: true },
+      status: { $ne: 'cancelled' },
+      createdAt: { $lte: deadline },
+    })
+
+    if (overdueOrders.length === 0) return
+
+    logger.info(`[Auto-cancel] Tự động hủy ${overdueOrders.length} đơn quá ${AUTO_CANCEL_UNPAID_HOURS}h chưa thanh toán...`)
+
+    for (const order of overdueOrders) {
+      try {
+        await restoreStockForOrder(order)
+        await revertVoucherForOrder(order)
+
+        order.isCancelled  = true
+        order.cancelledAt  = Date.now()
+        order.cancelReason = `Tự động hủy — quá ${AUTO_CANCEL_UNPAID_HOURS} giờ chưa thanh toán`
+        pushStatusHistory(order, 'cancelled', order.cancelReason, null)
+
+        await order.save()
+
+        await createNotification({
+          type: 'cancel_approved',
+          title: `Đơn #${order._id.toString().slice(-6).toUpperCase()} đã tự động bị hủy`,
+          message: `Đơn quá ${AUTO_CANCEL_UNPAID_HOURS} giờ chưa thanh toán nên đã được tự động hủy.`,
+          link: `/order/${order._id}`,
+          order: order._id,
+          user: order.user,
+        })
+
+        logger.info(`[Auto-cancel] Đã hủy đơn #${order._id.toString().slice(-6)}`)
+      } catch (e) {
+        logger.error(`[Auto-cancel] Lỗi khi hủy đơn #${order._id.toString().slice(-6)}: ${e.message}`)
+      }
+    }
+  } finally {
+    isCancellingUnpaid = false
   }
 }
 
@@ -1823,6 +1890,7 @@ export {
   trackOrder,
   autoSyncPendingGHNOrders,
   autoSyncPendingGHTKOrders,
+  autoCancelUnpaidOnlineOrders,
   cancelOrderRequest,
   approveCancelOrder,
   rejectCancelOrder,
