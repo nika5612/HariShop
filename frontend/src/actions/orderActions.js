@@ -42,6 +42,9 @@ import {
   ORDER_REFUND_COMPLETE_REQUEST,
   ORDER_REFUND_COMPLETE_SUCCESS,
   ORDER_REFUND_COMPLETE_FAIL,
+  ORDER_OVERPAID_REFUND_COMPLETE_REQUEST,
+  ORDER_OVERPAID_REFUND_COMPLETE_SUCCESS,
+  ORDER_OVERPAID_REFUND_COMPLETE_FAIL,
 } from '../constants/orderConstants'
 
 
@@ -273,6 +276,36 @@ export const completeRefund = (orderId, refundAmount, note) => async (dispatch, 
     const message = getErrorMessage(error)
     if (message === 'Not authorized, token failed') dispatch(logout())
     dispatch({ type: ORDER_REFUND_COMPLETE_FAIL, payload: message })
+  }
+}
+
+// MỚI: admin xác nhận đã chuyển khoản thủ công hoàn lại tiền thừa (khách
+// chuyển nhiều hơn giá trị đơn qua SePay QR) — không có API chuyển tiền tự
+// động, chỉ ghi nhận lại việc admin đã tự xử lý xong bên ngoài hệ thống.
+export const completeOverpaidRefund = (orderId, note) => async (dispatch, getState) => {
+  try {
+    dispatch({ type: ORDER_OVERPAID_REFUND_COMPLETE_REQUEST })
+
+    const { userLogin: { userInfo } } = getState()
+    const config = {
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${userInfo.token}`,
+      },
+    }
+
+    const { data } = await axios.put(
+      `/api/orders/${orderId}/overpaid-refund-complete`,
+      { note },
+      config
+    )
+
+    dispatch({ type: ORDER_OVERPAID_REFUND_COMPLETE_SUCCESS, payload: data })
+    dispatch({ type: ORDER_DETAILS_SUCCESS, payload: data })
+  } catch (error) {
+    const message = getErrorMessage(error)
+    if (message === 'Not authorized, token failed') dispatch(logout())
+    dispatch({ type: ORDER_OVERPAID_REFUND_COMPLETE_FAIL, payload: message })
   }
 }
 

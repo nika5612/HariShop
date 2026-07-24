@@ -590,3 +590,14 @@ h3 {
     width: 100%;
   }
 }
+
+/* MỚI: nút xoá thông báo — chỉ hiện khi hover vào cả dòng thông báo,
+   tránh danh sách bị rối mắt vì lúc nào cũng có icon thùng rác. */
+.notification-item:hover .notification-delete-btn {
+  opacity: 1 !important;
+}
+
+.notification-delete-btn:hover {
+  color: #ff6b6b !important;
+  background: rgba(255, 107, 107, 0.12) !important;
+}

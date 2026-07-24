@@ -15,6 +15,7 @@ import {
   rejectCancelOrder,
   requestRefund,
   completeRefund,
+  completeOverpaidRefund,
   sepayWebhook,
 } from '../controllers/orderController.js'
 import { protect, admin } from '../middleware/authMiddleware.js'
@@ -37,5 +38,6 @@ router.route('/:id/approve-cancel').put(protect, admin, approveCancelOrder)
 router.route('/:id/reject-cancel').put(protect, admin, rejectCancelOrder)
 router.route('/:id/refund-request').put(protect, requestRefund)
 router.route('/:id/refund-complete').put(protect, admin, completeRefund)
+router.route('/:id/overpaid-refund-complete').put(protect, admin, completeOverpaidRefund)
 
 export default router

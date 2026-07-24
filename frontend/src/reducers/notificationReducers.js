@@ -13,6 +13,8 @@ import {
   MY_NOTIFICATION_MARK_ALL_READ_SUCCESS,
   NOTIFICATION_SOCKET_NEW,
   MY_NOTIFICATION_SOCKET_NEW,
+  NOTIFICATION_DELETE_SUCCESS,
+  MY_NOTIFICATION_DELETE_SUCCESS,
 } from '../constants/notificationConstants'
 
 const initialState = { notifications: [], unreadCount: 0, loading: false, error: null }
@@ -52,6 +54,15 @@ export const notificationReducer = (state = initialState, action) => {
         ...state,
         unreadCount: state.unreadCount + 1,
         notifications: [action.payload, ...state.notifications].slice(0, 100),
+      }
+    // MỚI: xoá thông báo — loại khỏi danh sách, giảm unreadCount nếu nó
+    // đang chưa đọc (dùng lại wasUnread trả về từ backend cho chắc chắn,
+    // thay vì tự đoán lại từ state phía client).
+    case NOTIFICATION_DELETE_SUCCESS:
+      return {
+        ...state,
+        unreadCount: action.payload.unreadCount,
+        notifications: state.notifications.filter((n) => n._id !== action.payload.id),
       }
     default:
       return state
@@ -94,6 +105,13 @@ export const myNotificationReducer = (state = initialState, action) => {
         ...state,
         unreadCount: state.unreadCount + 1,
         notifications: [action.payload, ...state.notifications].slice(0, 100),
+      }
+    // MỚI: xoá thông báo (Khách hàng)
+    case MY_NOTIFICATION_DELETE_SUCCESS:
+      return {
+        ...state,
+        unreadCount: action.payload.unreadCount,
+        notifications: state.notifications.filter((n) => n._id !== action.payload.id),
       }
     default:
       return state

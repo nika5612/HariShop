@@ -10,6 +10,8 @@ import {
   fetchMyUnreadCount,
   markMyNotificationRead,
   markAllMyNotificationsRead,
+  deleteNotification,
+  deleteMyNotification,
 } from '../actions/notificationActions'
 
 const TYPE_ICON = {
@@ -18,6 +20,9 @@ const TYPE_ICON = {
   order_delivered:  { icon: 'fas fa-check-circle',     color: '#4cdb80' },
   cancel_request:   { icon: 'fas fa-times-circle',     color: '#ff6b6b' },
   refund_request:   { icon: 'fas fa-hand-holding-usd', color: '#ffd166' },
+  // MỚI: khách chuyển khoản SePay thiếu/thừa so với giá trị đơn
+  payment_underpaid: { icon: 'fas fa-exclamation-triangle', color: '#ff6b6b' },
+  payment_overpaid:  { icon: 'fas fa-coins',                color: '#ffd166' },
   // Khách hàng
   order_placed:     { icon: 'fas fa-receipt',          color: '#33FFCC' },
   order_status:     { icon: 'fas fa-box',              color: '#5eb3f6' },
@@ -87,6 +92,14 @@ const NotificationBell = ({ scope = 'admin' }) => {
     dispatch(isAdmin ? markAllNotificationsRead() : markAllMyNotificationsRead())
   }
 
+  // MỚI: xoá 1 thông báo — chặn sự kiện nổi bọt (stopPropagation) để không
+  // vô tình kích hoạt luôn handleClickItem (đánh dấu đã đọc + điều hướng)
+  // của div cha khi bấm nút xoá.
+  const handleDeleteItem = (e, id) => {
+    e.stopPropagation()
+    dispatch(isAdmin ? deleteNotification(id) : deleteMyNotification(id))
+  }
+
   return (
     <div ref={wrapperRef} style={{ position: 'relative', marginRight: 8 }}>
       <button
@@ -152,10 +165,12 @@ const NotificationBell = ({ scope = 'admin' }) => {
                   <div
                     key={n._id}
                     onClick={() => handleClickItem(n)}
+                    className='notification-item'
                     style={{
                       display: 'flex', gap: 10, padding: '12px 16px', cursor: 'pointer',
                       background: n.isRead ? 'transparent' : 'rgba(51,255,204,0.06)',
                       borderBottom: '1px solid rgba(255,255,255,0.05)',
+                      position: 'relative',
                     }}
                   >
                     <div style={{
@@ -186,6 +201,21 @@ const NotificationBell = ({ scope = 'admin' }) => {
                         flexShrink: 0, marginTop: 4,
                       }} />
                     )}
+                    {/* MỚI: nút xoá — chỉ hiện khi hover vào item (CSS .notification-item:hover) */}
+                    <button
+                      onClick={(e) => handleDeleteItem(e, n._id)}
+                      className='notification-delete-btn'
+                      aria-label='Xoá thông báo'
+                      title='Xoá thông báo'
+                      style={{
+                        background: 'transparent', border: 'none', color: '#8a8fa3',
+                        fontSize: 13, cursor: 'pointer', flexShrink: 0,
+                        padding: '4px 6px', borderRadius: 6, opacity: 0,
+                        transition: 'opacity 0.15s, color 0.15s, background 0.15s',
+                      }}
+                    >
+                      <i className='fas fa-trash-alt'></i>
+                    </button>
                   </div>
                 )
               })

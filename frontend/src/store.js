@@ -63,6 +63,7 @@ import {
   orderUpdateStatusReducer,
   orderRefundRequestReducer,
   orderRefundCompleteReducer,
+  orderOverpaidRefundCompleteReducer,
 } from './reducers/orderReducers'
 import { notificationReducer, myNotificationReducer } from './reducers/notificationReducers'
 
@@ -111,6 +112,7 @@ const reducer = combineReducers({
   orderUpdateStatus: orderUpdateStatusReducer,
   orderRefundRequest: orderRefundRequestReducer,
   orderRefundComplete: orderRefundCompleteReducer,
+  orderOverpaidRefundComplete: orderOverpaidRefundCompleteReducer,
   notification: notificationReducer,
   myNotification: myNotificationReducer,
   orderListMy: orderListMyReducer,

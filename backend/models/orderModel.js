@@ -50,6 +50,22 @@ const orderSchema = mongoose.Schema(
 
     isPaid:    { type: Boolean, required: true, default: false },
     paidAt:    { type: Date },
+    // MỚI: hỗ trợ trường hợp khách chuyển nhiều lần (VD lần đầu thiếu tiền,
+    // lần sau chuyển bù phần còn lại) — cộng dồn để so với tổng đơn thay vì
+    // chỉ so từng lần chuyển riêng lẻ.
+    paymentReceivedAmount: { type: Number, default: 0 },
+    // Chống đếm trùng nếu SePay gửi lại (retry) cùng 1 giao dịch — lưu theo
+    // đúng khuyến nghị chính thức của SePay: dùng trường `id` để chống trùng.
+    sepayTransactionIds: { type: [String], default: [] },
+    // MỚI: theo dõi việc hoàn tiền thừa (khách chuyển nhiều hơn giá trị đơn)
+    // — quy trình HOÀN THỦ CÔNG có cấu trúc: hệ thống chỉ tự phát hiện +
+    // đánh dấu "pending", admin tự chuyển khoản thật bên ngoài rồi bấm xác
+    // nhận "completed" trong Admin (không có API chuyển tiền tự động, SePay
+    // chỉ đọc được biến động số dư, không có quyền chuyển tiền đi).
+    overpaidAmount:       { type: Number, default: 0 },
+    overpaidRefundStatus: { type: String, enum: ['none', 'pending', 'completed'], default: 'none' },
+    overpaidRefundedAt:   { type: Date },
+    overpaidRefundNote:   { type: String, default: '' },
 
     deliveryMethod:  { type: String, default: 'nhanh' },
     voucherCode:     { type: String, default: '' },
@@ -157,6 +173,24 @@ const orderSchema = mongoose.Schema(
   },
   { timestamps: true }
 )
+
+// MỚI: index cho các query thực sự dùng trong code (không index tràn lan —
+// mỗi index thêm chi phí ghi, chỉ thêm khi có bằng chứng query cần).
+// 1) Lịch sử đơn hàng của khách, mới nhất trước (getMyOrders, frequentlyBoughtTogether)
+orderSchema.index({ user: 1, createdAt: -1 })
+// 2) Webhook SePay tra đơn theo mã chuyển khoản — quan trọng nhất vì chạy mỗi
+// lần có giao dịch thật. partialFilterExpression: chỉ index các đơn ĐÃ có
+// transferContent (loại các đơn '' mặc định lúc mới tạo/COD), giữ index nhỏ gọn.
+orderSchema.index(
+  { transferContent: 1 },
+  { partialFilterExpression: { transferContent: { $ne: '' } } }
+)
+// 3) Sort mặc định danh sách đơn ở Admin + báo cáo doanh thu theo khoảng ngày
+orderSchema.index({ createdAt: -1 })
+// 4) Job tự động hủy đơn online quá 24h chưa thanh toán — thứ tự field theo
+// quy tắc ESR (Equality trước, Range sau): paymentMethod + isPaid là điều
+// kiện bằng, createdAt là điều kiện khoảng.
+orderSchema.index({ paymentMethod: 1, isPaid: 1, createdAt: 1 })
 
 const Order = mongoose.model('Order', orderSchema)
 

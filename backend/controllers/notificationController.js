@@ -83,6 +83,34 @@ const markAsRead = asyncHandler(async (req, res) => {
   res.json({ success: true, unreadCount })
 })
 
+// MỚI: xoá 1 thông báo — dùng chung cho cả Admin lẫn Khách hàng, tự kiểm
+// tra quyền sở hữu bên trong (giống hệt cách markAsRead đã làm).
+const deleteNotification = asyncHandler(async (req, res) => {
+  const notification = await Notification.findById(req.params.id)
+  if (!notification) {
+    res.status(404)
+    throw new Error('Không tìm thấy thông báo')
+  }
+
+  const isOwnerCustomer = notification.user && notification.user.toString() === req.user._id.toString()
+  const isAdminNotification = !notification.user && req.user.isAdmin
+
+  if (!isOwnerCustomer && !isAdminNotification) {
+    res.status(401)
+    throw new Error('Không có quyền')
+  }
+
+  const wasUnread = !notification.isRead
+  await notification.deleteOne()
+
+  const unreadCount = await Notification.countDocuments({
+    user: notification.user || null,
+    isRead: false,
+  })
+
+  res.json({ success: true, id: req.params.id, wasUnread, unreadCount })
+})
+
 export {
   getNotifications,
   getUnreadCount,
@@ -91,4 +119,5 @@ export {
   getMyUnreadCount,
   markAllMyAsRead,
   markAsRead,
+  deleteNotification,
 }

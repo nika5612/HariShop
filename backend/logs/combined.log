@@ -100,3 +100,27 @@ Error: Images only!
 [2026-07-22 10:12:07] WARN: [SePay Webhook] SEPAY_SECRET chưa được cấu hình — đang chạy KHÔNG xác thực chữ ký. Chỉ chấp nhận khi test nội bộ, KHÔNG dùng cho production.
 [2026-07-22 10:12:36] INFO: Server running in development mode on port 5000
 [2026-07-22 10:13:06] INFO: [Auto-sync GHTK] Đang kiểm tra 8 đơn hàng (lô 5 đơn/lần)...
+[2026-07-23 11:13:46] INFO: Server running in development mode on port 5000
+[2026-07-23 11:17:09] WARN: [SePay Webhook] Đơn #f63a03 chuyển thiếu tiền — Nhận được 4.451.900đ, thiếu so với tổng đơn 44.519.001đ — cần đối soát thủ công
+[2026-07-23 11:21:26] INFO: Server running in development mode on port 5000
+[2026-07-23 11:21:33] INFO: Server running in development mode on port 5000
+[2026-07-23 11:22:10] WARN: [SePay Webhook] Đơn #f63a03 chuyển thiếu tiền — Nhận được 4.451.900đ, thiếu so với tổng đơn 44.519.001đ — cần đối soát thủ công
+[2026-07-23 11:29:30] INFO: Server running in development mode on port 5000
+[2026-07-23 11:29:46] INFO: Server running in development mode on port 5000
+[2026-07-23 11:36:58] INFO: Server running in development mode on port 5000
+[2026-07-23 19:38:47] INFO: Server running in development mode on port 5000
+[2026-07-23 22:01:26] INFO: Server running in development mode on port 5000
+[2026-07-23 22:02:23] WARN: [SePay Webhook] Đơn #88a17a chuyển thiếu tiền — Đã nhận cộng dồn 4.001.900đ / 40.019.001đ — còn thiếu 36.017.101đ
+[2026-07-24 09:35:39] INFO: Server running in development mode on port 5000
+[2026-07-24 09:37:47] INFO: Server running in development mode on port 5000
+[2026-07-24 09:37:54] INFO: Server running in development mode on port 5000
+[2026-07-24 09:38:27] INFO: Server running in development mode on port 5000
+[2026-07-24 10:12:17] INFO: Server running in development mode on port 5000
+[2026-07-24 10:12:25] INFO: Server running in development mode on port 5000
+[2026-07-24 10:12:37] INFO: Server running in development mode on port 5000
+[2026-07-24 10:12:48] INFO: Server running in development mode on port 5000
+[2026-07-24 10:13:02] INFO: Server running in development mode on port 5000
+[2026-07-24 10:13:15] INFO: Server running in development mode on port 5000
+[2026-07-24 10:20:34] INFO: Server running in development mode on port 5000
+[2026-07-24 10:26:30] INFO: Server running in development mode on port 5000
+[2026-07-24 14:34:59] INFO: Server running in development mode on port 5000

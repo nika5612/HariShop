@@ -12,6 +12,8 @@ import {
   MY_NOTIFICATION_UNREAD_COUNT_SUCCESS,
   MY_NOTIFICATION_MARK_READ_SUCCESS,
   MY_NOTIFICATION_MARK_ALL_READ_SUCCESS,
+  NOTIFICATION_DELETE_SUCCESS,
+  MY_NOTIFICATION_DELETE_SUCCESS,
 } from '../constants/notificationConstants'
 
 const getErrorMessage = (error) => {
@@ -80,6 +82,20 @@ export const markAllNotificationsRead = () => async (dispatch, getState) => {
   }
 }
 
+// MỚI: xoá 1 thông báo (Admin)
+export const deleteNotification = (id) => async (dispatch, getState) => {
+  try {
+    const { userLogin: { userInfo } } = getState()
+    const config = { headers: { Authorization: `Bearer ${userInfo.token}` } }
+
+    const { data } = await axios.delete(`/api/notifications/${id}`, config)
+
+    dispatch({ type: NOTIFICATION_DELETE_SUCCESS, payload: data })
+  } catch (error) {
+    // im lặng bỏ qua
+  }
+}
+
 /* ═══════════════════ THÔNG BÁO CHO KHÁCH HÀNG ═══════════════════ */
 
 export const listMyNotifications = (limit = 20) => async (dispatch, getState) => {
@@ -132,6 +148,20 @@ export const markAllMyNotificationsRead = () => async (dispatch, getState) => {
     await axios.put('/api/notifications/my/read-all', {}, config)
 
     dispatch({ type: MY_NOTIFICATION_MARK_ALL_READ_SUCCESS })
+  } catch (error) {
+    // im lặng bỏ qua
+  }
+}
+
+// MỚI: xoá 1 thông báo (Khách hàng)
+export const deleteMyNotification = (id) => async (dispatch, getState) => {
+  try {
+    const { userLogin: { userInfo } } = getState()
+    const config = { headers: { Authorization: `Bearer ${userInfo.token}` } }
+
+    const { data } = await axios.delete(`/api/notifications/${id}`, config)
+
+    dispatch({ type: MY_NOTIFICATION_DELETE_SUCCESS, payload: data })
   } catch (error) {
     // im lặng bỏ qua
   }

@@ -12,12 +12,6 @@ const formatVnd = (value) => {
   return num.toLocaleString('vi-VN')
 }
 
-// MỚI: chèn transformation của Cloudinary vào URL ảnh (nếu là link Cloudinary)
-// để luôn nhận về ảnh đúng kích thước carousel cần (w/h) thay vì để trình
-// duyệt tự phóng to ảnh gốc (vốn là ảnh sản phẩm, nhỏ hơn nhiều) → hết mờ.
-// f_auto/q_auto: tự chọn định dạng & chất lượng tối ưu theo trình duyệt.
-// c_fill,g_auto: cắt lấp đầy khung, tự nhận diện vùng quan trọng của ảnh.
-// dpr_auto: tự nhân đôi độ phân giải trên màn hình Retina/2x cho nét hơn.
 const getCloudinaryBannerUrl = (url, width, height) => {
   if (typeof url !== 'string' || !url.includes('res.cloudinary.com') || !url.includes('/upload/')) {
     return url

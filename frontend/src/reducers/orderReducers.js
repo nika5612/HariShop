@@ -63,6 +63,10 @@ import {
   ORDER_REFUND_COMPLETE_SUCCESS,
   ORDER_REFUND_COMPLETE_FAIL,
   ORDER_REFUND_COMPLETE_RESET,
+  ORDER_OVERPAID_REFUND_COMPLETE_REQUEST,
+  ORDER_OVERPAID_REFUND_COMPLETE_SUCCESS,
+  ORDER_OVERPAID_REFUND_COMPLETE_FAIL,
+  ORDER_OVERPAID_REFUND_COMPLETE_RESET,
   REVENUE_ANALYTICS_REQUEST,
   REVENUE_ANALYTICS_SUCCESS,
   REVENUE_ANALYTICS_FAIL,
@@ -309,6 +313,22 @@ export const orderRefundCompleteReducer = (state = {}, action) => {
     case ORDER_REFUND_COMPLETE_FAIL:
       return { loading: false, error: action.payload }
     case ORDER_REFUND_COMPLETE_RESET:
+      return {}
+    default:
+      return state
+  }
+}
+
+// MỚI: reducer cho luồng hoàn tiền thừa (SePay QR)
+export const orderOverpaidRefundCompleteReducer = (state = {}, action) => {
+  switch (action.type) {
+    case ORDER_OVERPAID_REFUND_COMPLETE_REQUEST:
+      return { loading: true }
+    case ORDER_OVERPAID_REFUND_COMPLETE_SUCCESS:
+      return { loading: false, success: true }
+    case ORDER_OVERPAID_REFUND_COMPLETE_FAIL:
+      return { loading: false, error: action.payload }
+    case ORDER_OVERPAID_REFUND_COMPLETE_RESET:
       return {}
     default:
       return state

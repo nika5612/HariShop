@@ -9,6 +9,7 @@ import {
   getMyUnreadCount,
   markAllMyAsRead,
   markAsRead,
+  deleteNotification,
 } from '../controllers/notificationController.js'
 import { protect, admin } from '../middleware/authMiddleware.js'
 
@@ -24,5 +25,6 @@ router.route('/read-all').put(protect, admin, markAllAsRead)
 
 /* ── Dùng chung (tự kiểm tra quyền bên trong controller) ── */
 router.route('/:id/read').put(protect, markAsRead)
+router.route('/:id').delete(protect, deleteNotification)
 
 export default router

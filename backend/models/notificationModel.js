@@ -14,6 +14,9 @@ const notificationSchema = mongoose.Schema(
         'cancel_request',   // Yêu cầu huỷ đơn
         'refund_request',   // Yêu cầu hoàn tiền
         'cod_restricted',   // MỚI (B1): khách bị hạn chế COD (báo Admin)
+        // MỚI: khách chuyển khoản SePay thiếu/thừa so với giá trị đơn
+        'payment_underpaid',
+        'payment_overpaid',
         // ── Thông báo cho Khách hàng ──
         'order_placed',     // Đặt hàng thành công
         'order_status',     // Cập nhật trạng thái đơn hàng (12 bước)

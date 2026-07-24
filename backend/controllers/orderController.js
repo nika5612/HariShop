@@ -8,7 +8,7 @@ import Voucher from '../models/voucherModel.js'
 import { applyVoucherLogic } from './voucherController.js'
 import { resolvePeriodRange } from '../utils/reportPeriod.js'
 import { createNotification } from './notificationController.js'
-import { computeFlashSale } from '../utils/flashSale.js'
+import { validateOrderInput, findPriceMismatches, computeTotalWeight, voucherDiscountMatches } from '../utils/checkoutValidation.js'
 import ghtkProvider from '../services/shipping/providers/ghtk.js'
 import logger from '../utils/logger.js'
 
@@ -410,20 +410,11 @@ const addOrderItems = asyncHandler(async (req, res) => {
     transferContent,
   } = req.body
 
-  if (!orderItems || !Array.isArray(orderItems) || orderItems.length === 0) {
-    res.status(400); throw new Error('No order items')
+  const inputCheck = validateOrderInput({ orderItems, shippingAddress, paymentMethod })
+  if (!inputCheck.valid) {
+    res.status(inputCheck.status)
+    throw new Error(inputCheck.message)
   }
-  if (!shippingAddress) {
-    res.status(400); throw new Error('Shipping address required')
-  }
-
-  const addr = shippingAddress
-  if (!addr.fullName?.trim()) { res.status(400); throw new Error('Full name required') }
-  if (!addr.phone?.trim())    { res.status(400); throw new Error('Phone number required') }
-  if (!addr.province?.trim()) { res.status(400); throw new Error('Province required') }
-  if (!addr.ward?.trim())     { res.status(400); throw new Error('Ward required') }
-  if (!addr.detail?.trim())   { res.status(400); throw new Error('Address detail required') }
-  if (!paymentMethod?.trim()) { res.status(400); throw new Error('Payment method required') }
 
   // ── MỚI (B1): chặn ở backend nếu tài khoản đang bị hạn chế COD (tránh bypass frontend) ──
   if (paymentMethod === 'cod') {
@@ -448,16 +439,7 @@ const addOrderItems = asyncHandler(async (req, res) => {
   const productMap = {}
   currentProducts.forEach((p) => { productMap[p._id.toString()] = p })
 
-  const priceMismatches = []
-  for (const item of orderItems) {
-    const p = productMap[item.product?.toString()]
-    if (!p) continue // sản phẩm không còn tồn tại — sẽ được xử lý ở bước khác nếu cần
-    const { isFlashSaleActive, salePrice } = computeFlashSale(p)
-    const currentPrice = isFlashSaleActive ? salePrice : p.price
-    if (currentPrice !== item.price) {
-      priceMismatches.push({ name: item.name, oldPrice: item.price, newPrice: currentPrice })
-    }
-  }
+  const priceMismatches = findPriceMismatches(orderItems, productMap)
 
   if (priceMismatches.length > 0) {
     res.status(409)
@@ -465,15 +447,7 @@ const addOrderItems = asyncHandler(async (req, res) => {
     throw new Error(`Giá của ${priceMismatches.length} sản phẩm đã thay đổi (có thể do khuyến mãi vừa kết thúc): ${detail}. Vui lòng quay lại giỏ hàng để cập nhật giá mới nhất trước khi đặt hàng.`)
   }
 
-  let computedTotalWeight = 0
-  if (Array.isArray(orderItems)) {
-    computedTotalWeight = orderItems.reduce(
-      (sum, item) => sum + (item.weight || 0) * (item.qty || 0), 0
-    )
-  }
-  const totalWeight = frontendTotalWeight > 0
-    ? Number(frontendTotalWeight)
-    : computedTotalWeight
+  const totalWeight = computeTotalWeight(orderItems, frontendTotalWeight)
 
   // ── MỚI: validate voucher TRƯỚC KHI tạo đơn (fail-fast). Trước đây
   // việc kiểm tra voucher chạy SAU khi đơn đã được lưu — nếu voucher hoá
@@ -505,7 +479,7 @@ const addOrderItems = asyncHandler(async (req, res) => {
     }
     // Số tiền giảm phải khớp với những gì backend tự tính — không tin số
     // frontend gửi lên (tránh gian lận sửa voucherDiscount trực tiếp).
-    if (Math.abs(Number(voucherDiscount || 0) - check.discountAmount) > 1) {
+    if (!voucherDiscountMatches(voucherDiscount, check.discountAmount)) {
       res.status(409)
       throw new Error('Số tiền giảm giá không khớp, vui lòng thử lại từ giỏ hàng.')
     }
@@ -1483,9 +1457,12 @@ const requestRefund = asyncHandler(async (req, res) => {
   if (!order.isPaid) {
     res.status(400); throw new Error('Đơn hàng chưa thanh toán, không thể yêu cầu hoàn tiền')
   }
-  if (!['delivery_failed', 'returned'].includes(order.status)) {
+  // MỚI: cho phép yêu cầu hoàn tiền cả khi đơn ở trạng thái "cancelled" —
+  // trước đây chỉ áp dụng cho giao hàng thất bại/hàng hoàn về kho, nhưng
+  // đơn đã thanh toán mà bị hủy (VD hủy trước khi giao) cũng cần hoàn tiền.
+  if (!['delivery_failed', 'returned', 'cancelled'].includes(order.status)) {
     res.status(400)
-    throw new Error('Chỉ có thể yêu cầu hoàn tiền khi giao hàng thất bại hoặc hàng đã hoàn về kho')
+    throw new Error('Chỉ có thể yêu cầu hoàn tiền khi đơn bị hủy, giao hàng thất bại, hoặc hàng đã hoàn về kho')
   }
   if (order.refundStatus === 'requested' || order.refundStatus === 'completed') {
     res.status(400); throw new Error('Đơn hàng đã có yêu cầu hoàn tiền trước đó')
@@ -1576,6 +1553,44 @@ const completeRefund = asyncHandler(async (req, res) => {
   res.json(updatedOrder)
 })
 
+// MỚI: Admin xác nhận ĐÃ chuyển khoản thủ công hoàn lại phần tiền khách
+// chuyển thừa qua SePay QR. Không có API chuyển tiền tự động (SePay chỉ đọc
+// được biến động số dư, không có quyền chuyển tiền đi) — admin tự thao tác
+// chuyển khoản qua app ngân hàng riêng, sau đó bấm xác nhận ở đây để hệ
+// thống ghi nhận lại, tránh phải nhớ/ dò trong ghi chú đơn hàng thủ công.
+const completeOverpaidRefund = asyncHandler(async (req, res) => {
+  const { note } = req.body
+
+  const order = await Order.findById(req.params.id)
+  if (!order) { res.status(404); throw new Error('Không tìm thấy đơn hàng') }
+  if (order.overpaidRefundStatus !== 'pending') {
+    res.status(400); throw new Error('Đơn hàng không có khoản tiền thừa nào đang chờ hoàn')
+  }
+
+  order.overpaidRefundStatus = 'completed'
+  order.overpaidRefundedAt = new Date()
+  order.overpaidRefundNote = note || ''
+  pushStatusHistory(
+    order,
+    order.status,
+    `Đã hoàn ${order.overpaidAmount.toLocaleString('vi-VN')}đ tiền thừa cho khách${note ? ` — ${note}` : ''}`,
+    req.user?._id
+  )
+
+  const updatedOrder = await order.save()
+
+  await createNotification({
+    type: 'refund_completed',
+    title: `Đơn #${order._id.toString().slice(-6).toUpperCase()} đã được hoàn tiền thừa`,
+    message: `Số tiền: ${order.overpaidAmount.toLocaleString('vi-VN')}đ`,
+    link: `/order/${order._id}`,
+    order: order._id,
+    user: order.user,
+  })
+
+  res.json(updatedOrder)
+})
+
 // MỚI: xác thực webhook SePay bằng HMAC-SHA256, đúng theo tài liệu chính
 // thức của SePay (developer.sepay.vn/en/sepay-webhooks/xac-thuc):
 //   - Header 'X-SePay-Signature': dạng 'sha256={hex_hash}'
@@ -1629,20 +1644,68 @@ const sepayWebhook = async (req, res) => {
     const data = req.body
     console.log('[SePay Webhook] Nhận dữ liệu:', JSON.stringify(data, null, 2))
 
+    // MỚI: chỉ xử lý giao dịch TIỀN VÀO — bỏ qua tiền ra (chuyển khoản đi),
+    // dù dashboard SePay có lỡ để "Tất cả" thay vì chỉ "Tiền vào".
+    if (data.transferType && data.transferType !== 'in') {
+      return res.status(200).json({ success: true, message: 'Bỏ qua giao dịch tiền ra' })
+    }
+
     const content = (data.content || '').toUpperCase()
     const match = content.match(/TT\d{6}/)
     if (!match) {
-      return res.status(200).json({ success: false, message: 'Không khớp mã đơn hàng' })
+      return res.status(200).json({ success: true, message: 'Không khớp mã đơn hàng' })
     }
 
     const transferCode = match[0]
     const order = await Order.findOne({ transferContent: transferCode })
 
     if (!order) {
-      return res.status(200).json({ success: false, message: 'Không tìm thấy đơn hàng' })
+      return res.status(200).json({ success: true, message: 'Không tìm thấy đơn hàng' })
     }
     if (order.isPaid) {
       return res.status(200).json({ success: true, message: 'Đơn hàng đã thanh toán trước đó' })
+    }
+
+    // MỚI: chống đếm trùng nếu SePay gửi lại (retry) đúng 1 giao dịch đã xử
+    // lý — theo đúng khuyến nghị chính thức của SePay (dùng trường `id`).
+    const sepayTxId = String(data.id ?? '')
+    if (sepayTxId && order.sepayTransactionIds.includes(sepayTxId)) {
+      return res.status(200).json({ success: true, message: 'Giao dịch này đã được xử lý trước đó (trùng lặp do gửi lại)' })
+    }
+
+    // MỚI: kiểm tra số tiền chuyển khoản thật (transferAmount), CỘNG DỒN với
+    // các lần chuyển trước đó cho cùng đơn — hỗ trợ trường hợp khách chuyển
+    // thiếu ở lần đầu rồi chuyển bù phần còn lại ở lần sau. So sánh tổng cộng
+    // dồn với tổng đơn, KHÔNG so từng lần chuyển riêng lẻ (nếu so riêng lẻ,
+    // lần chuyển bù—vốn nhỏ hơn tổng đơn—sẽ lại bị báo "thiếu tiền" sai).
+    const transferAmount = Number(data.transferAmount || 0)
+    order.paymentReceivedAmount = (order.paymentReceivedAmount || 0) + transferAmount
+    if (sepayTxId) order.sepayTransactionIds.push(sepayTxId)
+
+    if (order.paymentReceivedAmount < order.totalPrice) {
+      // Vẫn chưa đủ dù đã cộng dồn — KHÔNG đánh dấu đã thanh toán. Ghi lại
+      // vào statusHistory để admin biết và khách có thể chuyển bù tiếp.
+      const remaining = order.totalPrice - order.paymentReceivedAmount
+      const note = `Đã nhận cộng dồn ${order.paymentReceivedAmount.toLocaleString('vi-VN')}đ / ${order.totalPrice.toLocaleString('vi-VN')}đ — còn thiếu ${remaining.toLocaleString('vi-VN')}đ`
+      pushStatusHistory(order, order.status || 'pending', note, null)
+      await order.save()
+
+      logger.warn(`[SePay Webhook] Đơn #${order._id.toString().slice(-6)} chuyển thiếu tiền — ${note}`)
+
+      await createNotification({
+        type: 'payment_underpaid',
+        title: `Đơn #${order._id.toString().slice(-6).toUpperCase()} chuyển thiếu tiền`,
+        message: note,
+        link: `/order/${order._id}`,
+        order: order._id,
+        user: null, // thông báo cho admin, không phải khách
+      })
+
+      // Vẫn trả 200 + success:true — đây không phải lỗi kỹ thuật, chỉ là
+      // chưa đủ điều kiện đánh dấu thanh toán. Trả success:false sẽ khiến
+      // SePay hiểu nhầm là webhook thất bại rồi tự động gửi lại không cần
+      // thiết (xem ghi chú ở verifySepaySignature).
+      return res.status(200).json({ success: true, message: note })
     }
 
     order.isPaid = true
@@ -1652,6 +1715,30 @@ const sepayWebhook = async (req, res) => {
       status:        'COMPLETED',
       update_time:   new Date().toISOString(),
       email_address: '',
+    }
+
+    // MỚI: nếu tổng cộng dồn vượt quá giá trị đơn (chuyển thừa — kể cả
+    // thừa do 1 lần hay do cộng dồn nhiều lần), vẫn đánh dấu đã thanh toán
+    // nhưng đánh dấu cần hoàn tiền để admin xử lý (xem completeOverpaidRefund).
+    if (order.paymentReceivedAmount > order.totalPrice) {
+      const overpaid = order.paymentReceivedAmount - order.totalPrice
+      order.overpaidAmount = overpaid
+      order.overpaidRefundStatus = 'pending'
+      pushStatusHistory(
+        order,
+        'confirmed',
+        `Khách chuyển thừa ${overpaid.toLocaleString('vi-VN')}đ so với giá trị đơn hàng (tính cộng dồn nếu có nhiều lần chuyển) — cần hoàn tiền`,
+        null
+      )
+
+      await createNotification({
+        type: 'payment_overpaid',
+        title: `Đơn #${order._id.toString().slice(-6).toUpperCase()} cần hoàn tiền thừa`,
+        message: `Khách chuyển thừa ${overpaid.toLocaleString('vi-VN')}đ, cần admin chuyển khoản hoàn lại thủ công.`,
+        link: `/order/${order._id}`,
+        order: order._id,
+        user: null, // thông báo cho admin
+      })
     }
 
     await order.save()
@@ -1896,6 +1983,7 @@ export {
   rejectCancelOrder,
   requestRefund,
   completeRefund,
+  completeOverpaidRefund,
   sepayWebhook,
   getAdminRevenueSummary,
   getAdminBrandBreakdown,

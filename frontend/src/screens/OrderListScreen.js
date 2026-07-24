@@ -85,38 +85,64 @@ const OrderListScreen = ({ history }) => {
 
   // ── MỚI (A5): trạng thái thanh toán chi tiết — thay cho hiển thị ngày ──
   const renderPaymentStatus = (order) => {
+    let mainBadge
     if (order?.refundStatus === 'completed') {
-      return (
+      mainBadge = (
         <span style={{ color: '#4cdb80', fontWeight: 600, whiteSpace: 'nowrap' }}>
           <i className='fas fa-undo me-1' />Đã hoàn tiền
         </span>
       )
-    }
-    if (order?.refundStatus === 'requested') {
-      return (
+    } else if (order?.refundStatus === 'requested') {
+      mainBadge = (
         <span style={{ color: '#ffd166', fontWeight: 600, whiteSpace: 'nowrap' }}>
           <i className='fas fa-hand-holding-usd me-1' />Yêu cầu hoàn tiền
         </span>
       )
-    }
-    if (order?.refundStatus === 'rejected') {
-      return (
+    } else if (order?.refundStatus === 'rejected') {
+      mainBadge = (
         <span style={{ color: '#ff6b6b', fontWeight: 600, whiteSpace: 'nowrap' }}>
           <i className='fas fa-times-circle me-1' />Từ chối hoàn tiền
         </span>
       )
-    }
-    if (order?.isPaid) {
-      return (
+    } else if (order?.isPaid) {
+      mainBadge = (
         <span style={{ color: '#33FFCC', fontWeight: 600, whiteSpace: 'nowrap' }}>
           <i className='fas fa-check-circle me-1' />Đã thanh toán
         </span>
       )
+    } else {
+      mainBadge = (
+        <span style={{ color: '#8a8fa3', fontWeight: 600, whiteSpace: 'nowrap' }}>
+          <i className='fas fa-times me-1' />Chưa thanh toán
+        </span>
+      )
     }
+
+    // MỚI: badge phụ — đơn có thể VỪA "đã thanh toán" VỪA "cần hoàn tiền
+    // thừa" cùng lúc (2 trạng thái không loại trừ nhau), nên hiện thêm bên
+    // dưới thay vì thay thế mainBadge, giúp Admin thấy ngay trong danh sách
+    // mà không cần mở từng đơn hoặc phụ thuộc vào thông báo chuông.
+    const overpaidBadge = order?.overpaidRefundStatus === 'pending' && (
+      <div style={{ marginTop: 4 }}>
+        <span
+          title={`Khách chuyển thừa ${(order.overpaidAmount || 0).toLocaleString('vi-VN')}đ`}
+          style={{
+            color: '#0f0f23', background: '#ffd166', fontWeight: 700, fontSize: 11,
+            whiteSpace: 'nowrap', padding: '2px 8px', borderRadius: 10, display: 'inline-flex',
+            alignItems: 'center', gap: 4,
+          }}
+        >
+          <i className='fas fa-coins' />
+          Cần hoàn {(order.overpaidAmount || 0).toLocaleString('vi-VN')}đ
+        </span>
+      </div>
+    )
+
     return (
-      <span style={{ color: '#8a8fa3', fontWeight: 600, whiteSpace: 'nowrap' }}>
-        <i className='fas fa-times me-1' />Chưa thanh toán
-      </span>
+      <>
+        {mainBadge}
+        {overpaidBadge}
+      </>
     )
   }
 

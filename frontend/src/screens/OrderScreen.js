@@ -14,6 +14,7 @@ import {
   updateOrderStatus,
   requestRefund,
   completeRefund,
+  completeOverpaidRefund,
   updateCodPaymentStatus,
 } from '../actions/orderActions'
 import { deleteOrderByAdmin } from '../actions/orderAdminActions'
@@ -665,6 +666,10 @@ const OrderScreen = ({ match, history }) => {
   const orderRefundComplete = useSelector((state) => state.orderRefundComplete)
   const { loading: loadingRefundComplete, error: errorRefundComplete, success: successRefundComplete } = orderRefundComplete
 
+  // MỚI: hoàn tiền thừa (SePay QR)
+  const orderOverpaidRefundComplete = useSelector((state) => state.orderOverpaidRefundComplete)
+  const { loading: loadingOverpaidRefund, error: errorOverpaidRefund, success: successOverpaidRefund } = orderOverpaidRefundComplete
+
   const orderAdminDelete = useSelector((state) => state.orderAdminDelete)
   const { loading: loadingDelete, success: successDelete } = orderAdminDelete
 
@@ -693,6 +698,9 @@ const OrderScreen = ({ match, history }) => {
   // ── MỚI (A5): form Admin xác nhận đã hoàn tiền ────────────────
   const [refundCompleteAmount, setRefundCompleteAmount] = useState('')
   const [refundCompleteNote, setRefundCompleteNote] = useState('')
+
+  // MỚI: form Admin xác nhận đã hoàn tiền THỪA (SePay QR)
+  const [overpaidRefundNote, setOverpaidRefundNote] = useState('')
 
   useEffect(() => {
     if (!userInfo) {
@@ -804,6 +812,13 @@ const OrderScreen = ({ match, history }) => {
     const amount = Number(refundCompleteAmount) || order.totalPrice
     if (window.confirm(`Xác nhận ĐÃ chuyển khoản hoàn tiền ${amount.toLocaleString('vi-VN')}đ cho khách?`)) {
       dispatch(completeRefund(orderId, amount, refundCompleteNote.trim()))
+    }
+  }
+
+  // MỚI: Admin xác nhận đã chuyển khoản thủ công hoàn tiền THỪA (SePay QR)
+  const completeOverpaidRefundHandler = () => {
+    if (window.confirm(`Xác nhận ĐÃ chuyển khoản hoàn ${order.overpaidAmount?.toLocaleString('vi-VN')}đ tiền thừa cho khách?`)) {
+      dispatch(completeOverpaidRefund(orderId, overpaidRefundNote.trim()))
     }
   }
 
@@ -1180,15 +1195,58 @@ const OrderScreen = ({ match, history }) => {
             </div>
           )}
 
-          {/* Khách: nút yêu cầu hoàn tiền — chỉ hiện khi đủ điều kiện và chưa gửi yêu cầu */}
-          {isOwner && order.isPaid && ['delivery_failed', 'returned'].includes(order.status) &&
+          {/* MỚI: Admin xác nhận đã hoàn tiền THỪA (khách chuyển nhiều
+              hơn giá trị đơn qua SePay QR — hệ thống chỉ tự phát hiện,
+              admin tự chuyển khoản thật bên ngoài rồi bấm xác nhận ở đây).
+              ĐỘC LẬP với khối refundStatus ở trên (2 field khác nhau,
+              không phụ thuộc lẫn nhau — sửa lỗi lồng nhầm điều kiện). */}
+          {userInfo?.isAdmin && order.overpaidRefundStatus === 'pending' && (
+            <div style={sectionStyle}>
+              <h5 style={{ color: '#ffd166', fontWeight: '700', marginBottom: '16px' }}>
+                <i className='fas fa-coins me-2'></i>Cần hoàn tiền thừa
+              </h5>
+              <div style={{ background: 'rgba(255,209,102,0.08)', borderRadius: '10px', padding: '14px 16px', marginBottom: '14px', border: '1px solid rgba(255,209,102,0.2)' }}>
+                <div style={labelStyle}>Khách đã chuyển thừa tiền qua SePay QR</div>
+                <div style={{ color: '#ffd166', fontSize: '20px', fontWeight: '800', marginTop: '6px' }}>
+                  {order.overpaidAmount?.toLocaleString('vi-VN')}đ
+                </div>
+                <div style={{ color: '#b8bcc8', fontSize: '13px', marginTop: '6px' }}>
+                  Hệ thống chưa hỗ trợ chuyển khoản tự động — vui lòng tự chuyển khoản hoàn lại cho khách qua app ngân hàng, sau đó xác nhận ở đây.
+                </div>
+              </div>
+
+              {errorOverpaidRefund && <Message variant='danger'>{errorOverpaidRefund}</Message>}
+
+              <input
+                type='text' placeholder='Ghi chú (VD: mã giao dịch chuyển hoàn, không bắt buộc)'
+                value={overpaidRefundNote} onChange={(e) => setOverpaidRefundNote(e.target.value)}
+                style={{ width: '100%', background: '#0f0f23', border: '1px solid rgba(255,209,102,0.4)', borderRadius: '8px', padding: '10px 14px', color: '#ffffff', fontSize: '14px', outline: 'none', marginBottom: '12px' }}
+              />
+              <button
+                onClick={completeOverpaidRefundHandler} disabled={loadingOverpaidRefund}
+                style={{ background: '#4cdb80', border: 'none', borderRadius: '8px', padding: '10px 24px', color: '#0f0f23', fontWeight: '700', fontSize: '14px', cursor: loadingOverpaidRefund ? 'not-allowed' : 'pointer', opacity: loadingOverpaidRefund ? 0.7 : 1 }}
+              >
+                <i className='fas fa-check-double me-2'></i>{loadingOverpaidRefund ? 'Đang lưu...' : 'Xác nhận đã hoàn tiền thừa'}
+              </button>
+            </div>
+          )}
+
+          {/* Khách: nút yêu cầu hoàn tiền — chỉ hiện khi đủ điều kiện và chưa gửi yêu cầu.
+              MỚI: áp dụng thêm cho đơn đã bị hủy (cancelled) — trước đây chỉ
+              cho giao hàng thất bại/hàng hoàn về kho, nhưng đơn đã thanh
+              toán rồi bị hủy cũng cần được hoàn tiền. */}
+          {isOwner && order.isPaid && ['delivery_failed', 'returned', 'cancelled'].includes(order.status) &&
             (!order.refundStatus || order.refundStatus === 'none') && (
             <div style={sectionStyle}>
               <h5 style={{ color: '#ffd166', fontWeight: '700', marginBottom: '16px' }}>
                 <i className='fas fa-hand-holding-usd me-2'></i>Yêu cầu hoàn tiền
               </h5>
               <div style={{ color: '#b8bcc8', fontSize: '13px', marginBottom: '14px' }}>
-                Đơn hàng đã thanh toán nhưng {order.status === 'delivery_failed' ? 'giao hàng không thành công' : 'hàng đã được hoàn về kho'}.
+                Đơn hàng đã thanh toán nhưng {
+                  order.status === 'delivery_failed' ? 'giao hàng không thành công'
+                  : order.status === 'cancelled'     ? 'đã bị hủy'
+                  : 'hàng đã được hoàn về kho'
+                }.
                 Vui lòng cung cấp thông tin tài khoản ngân hàng để nhận lại tiền.
               </div>
 
